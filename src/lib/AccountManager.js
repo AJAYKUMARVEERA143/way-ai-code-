@@ -332,7 +332,7 @@ export class AccountManager {
     try {
       res=await fetch("https://api.anthropic.com/v1/messages",{
         method:"POST",
-        headers:{"Content-Type":"application/json","x-api-key":apiKey,"anthropic-version":"2023-06-01"},
+        headers:{"Content-Type":"application/json","x-api-key":apiKey,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
         body:JSON.stringify({model:model||"claude-haiku-4-5",max_tokens:4096,messages:[{role:"user",content:prompt}],stream:!!onToken}),
         signal,
       });
@@ -380,7 +380,7 @@ export class AccountManager {
       } else if (account.provider === "claude") {
         const res = await fetch("https://api.anthropic.com/v1/messages", {
           method: "POST",
-          headers: { "Content-Type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01" },
+          headers: { "Content-Type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01", "anthropic-dangerous-direct-browser-access": "true" },
           body: JSON.stringify({ model: account.model || provider.defaultModel || "claude-haiku-4-5", max_tokens: 1, messages: [{ role: "user", content: "ping" }] }),
           signal: AbortSignal.timeout(10000),
         });
@@ -569,7 +569,7 @@ export class AccountManager {
       } else if (a.provider === "claude") {
         const r = await fetch("https://api.anthropic.com/v1/messages", {
           method: "POST",
-          headers: { "Content-Type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01" },
+          headers: { "Content-Type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01", "anthropic-dangerous-direct-browser-access": "true" },
           signal: AbortSignal.timeout(10000),
           body: JSON.stringify({ model: a.model || "claude-haiku-4-5", max_tokens: 10, messages: [{ role: "user", content: "hi" }] }),
         });
