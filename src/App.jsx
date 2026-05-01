@@ -970,6 +970,11 @@ function ChatPanel({ manager, status, editorRef, lang, code, onProposeEdit }) {
       setMsgs(p=>[...p,{role:"ai",content:"❌ **Error:** No ready accounts available.\n\nOpen Accounts panel and add/update a valid API key, then click Reset on errored accounts."}]);
       return;
     }
+    const currentReady = (status.accounts || []).find(a => a.id === status.activeId && a.status === "active");
+    if (!currentReady) {
+      setMsgs(p=>[...p,{role:"ai",content:"⚠ Active account is not ready. Switched account may be required. Select a ready account in Accounts panel."}]);
+      return;
+    }
     setMsgs(p=>[...p,{role:"user",content:label||prompt.slice(0,120)}]);
     setStr(true); streamRef.current=""; setST("");
     const prov = PROVIDERS[status.active?.provider];

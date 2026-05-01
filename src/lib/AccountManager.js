@@ -273,6 +273,12 @@ export class AccountManager {
     if (provider === "copilot" && !apiKey) {
       apiKey = await this.getGitHubToken();
     }
+    if (!PROVIDERS[provider]?.local && provider !== "copilot" && !apiKey) {
+      throw new Error(`${PROVIDERS[provider]?.label || provider} API key is missing. Add a valid key in Accounts.`);
+    }
+    if (provider === "copilot" && !apiKey) {
+      throw new Error("Copilot token missing. Sign in to GitHub or set a valid Copilot token in Accounts.");
+    }
     if (provider==="ollama")  return this._ollama(prompt,model,baseUrl||"http://localhost:11434",onToken,signal);
     if (provider==="gemini")  return this._gemini(prompt,model,apiKey,onToken,signal);
     if (provider==="claude")  return this._claude(prompt,model,apiKey,onToken,signal);
@@ -322,12 +328,17 @@ export class AccountManager {
   }
 
   async _claude(prompt,model,apiKey,onToken,signal) {
-    const res=await fetch("https://api.anthropic.com/v1/messages",{
-      method:"POST",
-      headers:{"Content-Type":"application/json","x-api-key":apiKey,"anthropic-version":"2023-06-01"},
-      body:JSON.stringify({model:model||"claude-haiku-4-5",max_tokens:4096,messages:[{role:"user",content:prompt}],stream:!!onToken}),
-      signal,
-    });
+    let res;
+    try {
+      res=await fetch("https://api.anthropic.com/v1/messages",{
+        method:"POST",
+        headers:{"Content-Type":"application/json","x-api-key":apiKey,"anthropic-version":"2023-06-01"},
+        body:JSON.stringify({model:model||"claude-haiku-4-5",max_tokens:4096,messages:[{role:"user",content:prompt}],stream:!!onToken}),
+        signal,
+      });
+    } catch (err) {
+      throw new Error(`Claude network request failed: ${String(err?.message || err)}. Check internet/firewall or try another provider.`);
+    }
     if(!res.ok){const t=await res.text();throw new Error(`Claude ${res.status}: ${t}`);}
     if(!onToken){const d=await res.json();return d.content?.[0]?.text||"";}
     return this._streamSSE(res,onToken,line=>{
@@ -421,12 +432,26 @@ export class AccountManager {
   _status() {
     const active = this._getActive();
     return {
-      accounts: this.accounts.map(({ apiKey, ...rest }) => ({
-        ...rest,
-        apiKey: apiKey ? "\u2022\u2022\u2022\u2022" : "",
-      })),
+      accounts: this.accounts.map(({ apiKey, ...rest }) => {
+        const provider = PROVIDERS[rest.provider] || {};
+        const hasKey = !!apiKey;
+        const effectiveStatus = (!provider.local && rest.provider !== "copilot" && !hasKey)
+          ? "disabled"
+          : rest.status;
+        return {
+          ...rest,
+          status: effectiveStatus,
+          apiKey: hasKey ? "\u2022\u2022\u2022\u2022" : "",
+        };
+      }),
       activeId: this.activeId,
-      active: active ? { ...active, apiKey: active.apiKey ? "\u2022\u2022\u2022\u2022" : "" } : null,
+      active: active
+        ? {
+            ...active,
+            status: (!PROVIDERS[active.provider]?.local && active.provider !== "copilot" && !active.apiKey) ? "disabled" : active.status,
+            apiKey: active.apiKey ? "\u2022\u2022\u2022\u2022" : "",
+          }
+        : null,
     };
   }
 
