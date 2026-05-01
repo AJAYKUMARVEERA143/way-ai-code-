@@ -126,7 +126,7 @@ function simCmd(raw, cwd, setCwd) {
   }
 }
 
-function TermInstance({ termId, shell, active, actionSignal }) {
+function TermInstance({ termId, shell, active, actionSignal, promptMode }) {
   const containerRef = useRef(null);
   const xtermRef = useRef(null);
   const fitRef = useRef(null);
@@ -137,8 +137,14 @@ function TermInstance({ termId, shell, active, actionSignal }) {
   const histIdx = useRef(-1);
 
   const prompt = useCallback(() => {
-    xtermRef.current?.write(`\r\n${G}${cwd.current}${R} ${C}>${R} `);
-  }, []);
+    const marker = promptMode === "classic" ? "$" : ">";
+    xtermRef.current?.write(`\r\n${G}${cwd.current}${R} ${C}${marker}${R} `);
+  }, [promptMode]);
+
+  const writePromptLine = useCallback((text) => {
+    const marker = promptMode === "classic" ? "$" : ">";
+    xtermRef.current?.write(`\r\x1b[K${G}${cwd.current}${R} ${C}${marker}${R} ${text}`);
+  }, [promptMode]);
 
   const pasteFromClipboard = useCallback(async () => {
     try {
@@ -262,21 +268,18 @@ function TermInstance({ termId, shell, active, actionSignal }) {
               if (histIdx.current < hist.current.length - 1) {
                 histIdx.current++;
                 const s = hist.current[histIdx.current];
-                term.write("\r\x1b[K");
-                term.write(`${G}${cwd.current}${R} ${C}>${R} ${s}`);
+                writePromptLine(s);
                 buf.current = s;
               }
             } else if (k === "ArrowDown") {
               if (histIdx.current > 0) {
                 histIdx.current--;
                 const s = hist.current[histIdx.current];
-                term.write("\r\x1b[K");
-                term.write(`${G}${cwd.current}${R} ${C}>${R} ${s}`);
+                writePromptLine(s);
                 buf.current = s;
               } else if (histIdx.current === 0) {
                 histIdx.current = -1;
-                term.write("\r\x1b[K");
-                term.write(`${G}${cwd.current}${R} ${C}>${R} `);
+                writePromptLine("");
                 buf.current = "";
               }
             } else if (domEvent.ctrlKey && k.toLowerCase() === "c") {
@@ -312,7 +315,7 @@ function TermInstance({ termId, shell, active, actionSignal }) {
       xtermRef.current = null;
       fitRef.current = null;
     };
-  }, [prompt, shell, termId, clearTerminal, copySelection, pasteFromClipboard]);
+  }, [prompt, shell, termId, clearTerminal, copySelection, pasteFromClipboard, writePromptLine]);
 
   useEffect(() => {
     if (!active) return;
@@ -331,7 +334,7 @@ function TermInstance({ termId, shell, active, actionSignal }) {
     if (actionSignal.type === "paste") pasteFromClipboard();
   }, [actionSignal, active, clearTerminal, copySelection, pasteFromClipboard]);
 
-  return <div ref={containerRef} className="xterm-container" style={{ display:active ? "flex" : "none" }}/>;
+  return <div ref={containerRef} className={`xterm-container ${active ? "is-active" : ""}`} style={{ display:active ? "flex" : "none" }}/>;
 }
 
 let _nid = 1;
@@ -340,6 +343,7 @@ export default function TerminalPanel({ onClose, embedded = false, height: contr
   const [tabs, setTabs] = useState(() => [{ id:_nid++, shell:SHELLS[0], title:SHELLS[0].label }]);
   const [activeId, setActiveId] = useState(tabs[0]?.id || null);
   const [profileId, setProfileId] = useState(SHELLS[0].id);
+  const [promptMode, setPromptMode] = useState("modern");
   const [height, setHeight] = useState(220);
   const [actionSignal, setActionSignal] = useState({ id: 0, type: "" });
   const panelHeight = controlledHeight ?? height;
@@ -414,6 +418,10 @@ export default function TerminalPanel({ onClose, embedded = false, height: contr
           <select className="term-profile" value={profileId} title="Terminal profile" onChange={e=>setProfileId(e.target.value)}>
             {SHELLS.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
           </select>
+          <select className="term-profile term-prompt-select" value={promptMode} title="Prompt mode" onChange={e=>setPromptMode(e.target.value)}>
+            <option value="modern">Prompt modern</option>
+            <option value="classic">Prompt classic</option>
+          </select>
           <button className="term-icon-btn soft" title="Copy" disabled={!tabs.length} onClick={() => emitAction("copy")}>Copy</button>
           <button className="term-icon-btn soft" title="Paste" disabled={!tabs.length} onClick={() => emitAction("paste")}>Paste</button>
           <button className="term-icon-btn soft" title="Clear" disabled={!tabs.length} onClick={() => emitAction("clear")}>Clear</button>
@@ -427,7 +435,7 @@ export default function TerminalPanel({ onClose, embedded = false, height: contr
       <div className="term-workspace">
         <div className="term-body">
           {tabs.length ? (
-            tabs.map(t => <TermInstance key={t.id} termId={t.id} shell={t.shell} active={t.id===activeId} actionSignal={actionSignal}/>)
+            tabs.map(t => <TermInstance key={t.id} termId={t.id} shell={t.shell} active={t.id===activeId} actionSignal={actionSignal} promptMode={promptMode}/>)
           ) : (
             <div className="term-empty">
               <div>No terminal session</div>
@@ -448,4 +456,3 @@ export default function TerminalPanel({ onClose, embedded = false, height: contr
     </div>
   );
 }
-

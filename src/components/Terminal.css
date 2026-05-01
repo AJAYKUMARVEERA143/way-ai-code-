@@ -118,6 +118,11 @@
   padding: 0 8px;
 }
 
+.term-prompt-select {
+  min-width: 132px;
+  max-width: 160px;
+}
+
 .term-icon-btn {
   min-width: 28px;
   height: 30px;
@@ -244,6 +249,10 @@
   flex-direction: column;
 }
 
+.xterm-container.is-active {
+  animation: terminalPaneIn .24s ease;
+}
+
 .xterm-container .xterm { width: 100%; height: 100%; }
 .xterm-container .xterm-viewport { background: transparent !important; overflow-y: auto !important; }
 .xterm-container .xterm-viewport::-webkit-scrollbar { width: 6px; }
@@ -279,13 +288,34 @@
 
 .term-fallback span { color: #ff6f85; }
 
-@media (max-width: 980px) {
+@keyframes terminalPaneIn {
+  from { opacity: .65; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media (max-width: 1120px) {
+  .term-profile { min-width: 126px; }
+  .term-prompt-select { min-width: 112px; }
   .term-shortcuts { display: none; }
 }
 
 @media (max-width: 760px) {
   .term-workspace { grid-template-columns: minmax(0, 1fr); }
   .term-session-list { display: none; }
-  .term-profile { min-width: 120px; max-width: 140px; }
+  .term-profile { min-width: 108px; max-width: 122px; }
+  .term-prompt-select { min-width: 106px; max-width: 120px; }
   .term-icon-btn.soft { display: none; }
+  .term-toolbar {
+    padding: 6px 8px;
+    gap: 8px;
+  }
+  .term-toolbar-actions {
+    gap: 4px;
+  }
+  .term-icon-btn {
+    min-width: 26px;
+    height: 28px;
+    font-size: 11px;
+    padding: 0 6px;
+  }
 }
