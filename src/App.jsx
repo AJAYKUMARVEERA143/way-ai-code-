@@ -4,7 +4,7 @@
  * All paths fixed to match actual project structure
  */
 
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import Editor from "@monaco-editor/react";
 import { AccountManager, PROVIDERS, autoDetect } from "./lib/AccountManager.js";
 import FileExplorer from "./components/FileExplorer.jsx";
@@ -909,6 +909,7 @@ export default function App() {
   const monacoRef = useRef(null);
   const inlineDiffRef = useRef(null);
   const completionDisposablesRef = useRef([]);
+  const menuBarRef = useRef(null);
   const accStatusRef = useRef(null);
   const routerScoresRef = useRef({});
   const activeTabRef = useRef(null);
@@ -921,9 +922,11 @@ export default function App() {
   const [activity, setActivity] = useState("files"); // default: show file explorer
   const [sideOpen, setSideOpen] = useState(true);
   const [secondarySideOpen, setSecondarySideOpen] = useState(false);
+  const [secondaryTab, setSecondaryTab] = useState("outline");
   const [panelOpen, setPanelOpen] = useState(true);
   const [panelActive, setPanelActive] = useState("terminal");
   const [layoutMode, setLayoutMode] = useState("default");
+  const [openMenu, setOpenMenu] = useState(null);
   const [panelHeight, setPanelHeight] = useState(initialSettings.panelHeight || 240);
   const [cmdOpen, setCmdOpen] = useState(false);
   const [workspaceRoot, setWorkspaceRoot] = useState(initialSettings.workspaceRoot || MOCK_ROOT);
@@ -1333,6 +1336,41 @@ export default function App() {
   const switchAct = id => { if(activity===id) setSideOpen(o=>!o); else { setActivity(id); setSideOpen(true); } };
   const openSide = id => { setActivity(id); setSideOpen(true); };
 
+  const activeFileCode = activeTab ? (tabCode[activeTab] ?? code) : code;
+
+  const symbolItems = useMemo(() => {
+    if (!activeFileCode) return [];
+    const lines = activeFileCode.split("\n");
+    const items = [];
+    const patterns = [
+      { kind: "function", re: /^\s*(?:export\s+)?(?:async\s+)?function\s+([A-Za-z_$][\w$]*)/ },
+      { kind: "class", re: /^\s*(?:export\s+)?class\s+([A-Za-z_$][\w$]*)/ },
+      { kind: "const", re: /^\s*(?:export\s+)?const\s+([A-Za-z_$][\w$]*)\s*=\s*(?:async\s*)?\(/ },
+      { kind: "const", re: /^\s*(?:export\s+)?const\s+([A-Za-z_$][\w$]*)\s*=\s*\{/ },
+      { kind: "hook", re: /^\s*const\s+([A-Za-z_$][\w$]*)\s*=\s*use[A-Z]/ },
+    ];
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      for (const p of patterns) {
+        const m = line.match(p.re);
+        if (m?.[1]) {
+          items.push({ name: m[1], kind: p.kind, line: i + 1 });
+          break;
+        }
+      }
+      if (items.length >= 120) break;
+    }
+    return items;
+  }, [activeFileCode]);
+
+  const revealLine = useCallback((line) => {
+    const editor = editorRef.current;
+    if (!editor || !line) return;
+    editor.revealLineInCenter(line);
+    editor.setPosition({ lineNumber: line, column: 1 });
+    editor.focus();
+  }, []);
+
   const applyLayoutMode = useCallback((mode) => {
     setLayoutMode(mode);
     if (mode === "default") {
@@ -1354,41 +1392,106 @@ export default function App() {
     }
   }, []);
 
-  const handleTopMenuAction = useCallback((menu) => {
-    switch (menu) {
-      case "File":
-        saveActiveFile();
-        break;
-      case "Edit":
-        formatActiveFile();
-        break;
-      case "Selection":
-        setToast({ msg: "Selection tools ready", type: "info" });
-        setTimeout(() => setToast(null), 1800);
-        break;
-      case "View":
-        openSide("files");
-        break;
-      case "Go":
-        setCmdOpen(true);
-        break;
-      case "Run":
-        openPanel("output");
-        pushOutput("Run action opened Output panel");
-        break;
-      case "Terminal":
-        openPanel("terminal");
-        break;
-      case "Help":
-        setToast({ msg: "Help center coming soon", type: "info" });
-        setTimeout(() => setToast(null), 2000);
-        break;
-      default:
-        break;
-    }
-  }, [formatActiveFile, openPanel, openSide, pushOutput, saveActiveFile]);
+  useEffect(() => {
+    const onDown = (e) => {
+      if (!menuBarRef.current?.contains(e.target)) setOpenMenu(null);
+    };
+    window.addEventListener("mousedown", onDown);
+    return () => window.removeEventListener("mousedown", onDown);
+  }, []);
 
-  const TOP_MENU_ITEMS = ["File", "Edit", "Selection", "View", "Go", "Run", "Terminal", "Help"];
+  const closeActiveTab = useCallback(() => {
+    if (activeTab) closeTab(activeTab);
+  }, [activeTab, closeTab]);
+
+  const runMenuAction = useCallback((action) => {
+    action?.();
+    setOpenMenu(null);
+  }, []);
+
+  const MENU_GROUPS = useMemo(() => ([
+    {
+      label: "File",
+      items: [
+        { label: "Save", shortcut: "Ctrl+S", action: saveActiveFile },
+        { label: "Close Active Tab", action: closeActiveTab },
+        { separator: true },
+        { label: "Open Command Palette", shortcut: "Ctrl+Shift+P", action: () => setCmdOpen(true) },
+      ],
+    },
+    {
+      label: "Edit",
+      items: [
+        { label: "Format Document", shortcut: "Shift+Alt+F", action: formatActiveFile },
+        { label: `Word Wrap: ${wordWrap === "on" ? "On" : "Off"}`, action: () => setWordWrap(w => w === "on" ? "off" : "on") },
+        { label: "Theme: Dark", action: () => setTheme("vs-dark") },
+        { label: "Theme: Light", action: () => setTheme("vs-light") },
+      ],
+    },
+    {
+      label: "Selection",
+      items: [
+        { label: "AI Fix Selected Code", action: () => runAiEdit("Fix selected code", "Fix bugs and correctness issues in this code") },
+        { label: "AI Refactor Selected Code", action: () => runAiEdit("Refactor selected code", "Refactor this code for clarity, maintainability, and best practices") },
+        { label: "AI Comment Selected Code", action: () => runAiEdit("Comment selected code", "Add concise useful comments to this code") },
+      ],
+    },
+    {
+      label: "View",
+      items: [
+        { label: sideOpen ? "Hide Primary Sidebar" : "Show Primary Sidebar", action: () => setSideOpen(v => !v) },
+        { label: panelOpen ? "Hide Panel" : "Show Panel", action: () => setPanelOpen(v => !v) },
+        { label: secondarySideOpen ? "Hide Secondary Sidebar" : "Show Secondary Sidebar", action: () => setSecondarySideOpen(v => !v) },
+        { separator: true },
+        { label: "Explorer", action: () => openSide("files") },
+        { label: "Search", action: () => openSide("search") },
+        { label: "Source Control", action: () => openSide("git") },
+      ],
+    },
+    {
+      label: "Go",
+      items: [
+        { label: "Go to File", action: () => { setCmdOpen(true); } },
+        { label: "Go to Explorer", action: () => openSide("files") },
+        { label: "Go to Chat", action: () => openSide("chat") },
+      ],
+    },
+    {
+      label: "Run",
+      items: [
+        { label: "Run npm dev", action: () => runTask("npm dev", "npm run dev") },
+        { label: "Run npm build", action: () => runTask("npm build", "npm run build") },
+        { label: "Run cargo check", action: () => runTask("cargo check", "cargo check") },
+      ],
+    },
+    {
+      label: "Terminal",
+      items: [
+        { label: "Focus Terminal", shortcut: "Ctrl+`", action: () => openPanel("terminal") },
+        { label: panelOpen ? "Hide Panel" : "Show Panel", action: () => setPanelOpen(v => !v) },
+        { label: "Focus Output", action: () => openPanel("output") },
+      ],
+    },
+    {
+      label: "Help",
+      items: [
+        { label: "Keyboard Shortcuts", action: () => { setToast({ msg: "Ctrl+Shift+P, Ctrl+S, Shift+Alt+F, Ctrl+`", type: "info" }); setTimeout(() => setToast(null), 2600); } },
+        { label: "About Way AI Code", action: () => { setToast({ msg: "Way AI Code workbench", type: "info" }); setTimeout(() => setToast(null), 2200); } },
+      ],
+    },
+  ]), [
+    closeActiveTab,
+    formatActiveFile,
+    openPanel,
+    openSide,
+    panelOpen,
+    runAiEdit,
+    runTask,
+    saveActiveFile,
+    secondarySideOpen,
+    sideOpen,
+    wordWrap,
+  ]);
 
   const commands = [
     { id:"file.save", title:"File: Save", group:"File", detail:"Ctrl+S", run:saveActiveFile },
@@ -1572,34 +1675,114 @@ export default function App() {
               <button className="icon-btn" onClick={()=>setSecondarySideOpen(false)}><Ic.X/></button>
             </div>
             <div className="secondary-body">
+              <div className="secondary-tabs">
+                <button className={`secondary-tab ${secondaryTab==="outline"?"on":""}`} onClick={()=>setSecondaryTab("outline")}>Outline</button>
+                <button className={`secondary-tab ${secondaryTab==="symbols"?"on":""}`} onClick={()=>setSecondaryTab("symbols")}>Symbols</button>
+                <button className={`secondary-tab ${secondaryTab==="ai"?"on":""}`} onClick={()=>setSecondaryTab("ai")}>AI Actions</button>
+              </div>
+              {secondaryTab === "outline" && (
+                <div className="secondary-card">
+                  <div className="secondary-card-hd">Open Files</div>
+                  <div className="secondary-list">
+                    {tabs.length ? tabs.map(t => (
+                      <button key={t.key} className={`secondary-list-item ${activeTab===t.key?"on":""}`} onClick={()=>switchTab(t.key)}>
+                        {t.name}
+                      </button>
+                    )) : <div className="secondary-empty">No files open</div>}
+                  </div>
+                </div>
+              )}
+              {secondaryTab === "symbols" && (
+                <div className="secondary-card">
+                  <div className="secondary-card-hd">{activeTab ? `Symbols in ${tabs.find(t=>t.key===activeTab)?.name || "file"}` : "Symbols"}</div>
+                  <div className="secondary-list mono">
+                    {symbolItems.length ? symbolItems.map((s, idx) => (
+                      <button key={`${s.name}:${s.line}:${idx}`} className="secondary-list-item" onClick={()=>revealLine(s.line)}>
+                        <span className="secondary-kind">{s.kind}</span>
+                        <span className="secondary-name">{s.name}</span>
+                        <span className="secondary-line">L{s.line}</span>
+                      </button>
+                    )) : <div className="secondary-empty">No symbols found</div>}
+                  </div>
+                </div>
+              )}
+              {secondaryTab === "ai" && (
+                <>
+                  <div className="secondary-card">
+                    <div className="secondary-card-hd">AI Quick Actions</div>
+                    <div className="secondary-card-actions">
+                      <button className="btn-icon-sm" onClick={()=>runAiEdit("Fix selected code","Fix bugs and correctness issues in this code")}>Fix</button>
+                      <button className="btn-icon-sm" onClick={()=>runAiEdit("Refactor selected code","Refactor this code for clarity, maintainability, and best practices")}>Refactor</button>
+                      <button className="btn-icon-sm" onClick={()=>runAiEdit("Comment selected code","Add concise useful comments to this code")}>Comment</button>
+                    </div>
+                  </div>
+                  <div className="secondary-card">
+                    <div className="secondary-card-hd">Quick Layout</div>
+                    <div className="secondary-card-actions">
+                      <button className="btn-icon-sm" onClick={()=>applyLayoutMode("default")}>Default</button>
+                      <button className="btn-icon-sm" onClick={()=>applyLayoutMode("focus")}>Focus</button>
+                      <button className="btn-icon-sm" onClick={()=>applyLayoutMode("zen")}>Zen</button>
+                    </div>
+                  </div>
+                </>
+              )}
               <div className="secondary-card">
                 <div className="secondary-card-hd">Active File</div>
                 <div className="secondary-card-body">{activeTab || "No file selected"}</div>
-              </div>
-              <div className="secondary-card">
-                <div className="secondary-card-hd">Quick Layout</div>
-                <div className="secondary-card-actions">
-                  <button className="btn-icon-sm" onClick={()=>applyLayoutMode("default")}>Default</button>
-                  <button className="btn-icon-sm" onClick={()=>applyLayoutMode("focus")}>Focus</button>
-                  <button className="btn-icon-sm" onClick={()=>applyLayoutMode("zen")}>Zen</button>
-                </div>
+                <div className="secondary-card-meta">Language: {lang}</div>
+                <div className="secondary-card-meta">Theme: {theme}</div>
+                <div className="secondary-card-meta">Font: {fontSize}px</div>
+                <div className="secondary-card-meta">Wrap: {wordWrap}</div>
               </div>
             </div>
           </div>
         )}
       </div>
 
-      <div className="workbench-menubar">
+      <div className="workbench-menubar" ref={menuBarRef}>
         <div className="wb-menu-left">
-          {TOP_MENU_ITEMS.map(item => (
-            <button key={item} className="wb-menu-item" onClick={()=>handleTopMenuAction(item)}>{item}</button>
+          {MENU_GROUPS.map(group => (
+            <div key={group.label} className="wb-menu-wrap">
+              <button
+                className={`wb-menu-item ${openMenu===group.label?"on":""}`}
+                onClick={()=>setOpenMenu(m => m === group.label ? null : group.label)}
+              >
+                {group.label}
+              </button>
+              {openMenu===group.label && (
+                <div className="wb-menu-pop">
+                  {group.items.map((item, idx) => item.separator ? (
+                    <div key={`sep:${idx}`} className="wb-menu-sep" />
+                  ) : (
+                    <button key={`${item.label}:${idx}`} className="wb-menu-row" onClick={()=>runMenuAction(item.action)}>
+                      <span>{item.label}</span>
+                      {item.shortcut ? <span className="wb-menu-key">{item.shortcut}</span> : <span />}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           ))}
         </div>
         <div className="wb-menu-right">
+          <div className="wb-quick-group">
+            <select className="wb-quick-select" value={lang} onChange={e=>setLang(e.target.value)} title="Language">
+              {LANGS.map(l=><option key={l}>{l}</option>)}
+            </select>
+            <select className="wb-quick-select" value={theme} onChange={e=>setTheme(e.target.value)} title="Theme">
+              <option value="vs-dark">Dark</option>
+              <option value="vs-light">Light</option>
+              <option value="hc-black">HC Black</option>
+            </select>
+            <select className="wb-quick-select" value={fontSize} onChange={e=>setFontSize(Number(e.target.value))} title="Font size">
+              {[12,13,14,15,16,18].map(s=><option key={s} value={s}>{s}px</option>)}
+            </select>
+            <button className={`wb-chip ${wordWrap==="on"?"on":""}`} onClick={()=>setWordWrap(w=>w==="on"?"off":"on")}>Wrap</button>
+          </div>
           <select className="wb-layout-select" value={layoutMode} onChange={e=>applyLayoutMode(e.target.value)} title="Layout options">
-            <option value="default">Layout Options: Default</option>
-            <option value="focus">Layout Options: Focus</option>
-            <option value="zen">Layout Options: Zen</option>
+            <option value="default">Layout: Default</option>
+            <option value="focus">Layout: Focus</option>
+            <option value="zen">Layout: Zen</option>
           </select>
           <button className={`wb-toggle-btn ${sideOpen?"on":""}`} onClick={()=>setSideOpen(v=>!v)}>Toggle Primary Sidebar</button>
           <button className={`wb-toggle-btn ${panelOpen?"on":""}`} onClick={()=>setPanelOpen(v=>!v)}>Toggle Panel</button>
