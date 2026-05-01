@@ -1,0 +1,331 @@
+.wayai-tab {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--bg1);
+}
+
+.wayai-header,
+.wayai-account-bar,
+.wayai-input-area,
+.wayai-current,
+.wayai-history {
+  border-bottom: 1px solid var(--b1);
+}
+
+.wayai-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+}
+
+.wayai-title {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--t1);
+}
+
+.wayai-title svg {
+  color: var(--accent2);
+}
+
+.wayai-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.wayai-model-select,
+.wayai-task-input {
+  width: 100%;
+  background: var(--bg2);
+  border: 1px solid var(--b1);
+  border-radius: 4px;
+  color: var(--t1);
+  font-family: var(--ui);
+  font-size: 12px;
+  outline: none;
+}
+
+.wayai-model-select {
+  min-width: 185px;
+  padding: 5px 8px;
+}
+
+.wayai-account-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 10px;
+  flex-wrap: wrap;
+}
+
+.acc-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  border: 1px solid var(--b1);
+  background: var(--bg2);
+  color: var(--t2);
+}
+
+.acc-pill.cloud {
+  color: #cfe6ff;
+  border-color: rgba(17,119,187,0.4);
+  background: rgba(17,119,187,0.15);
+}
+
+.acc-pill.local {
+  color: var(--t1);
+  background: rgba(255,255,255,0.04);
+}
+
+.acc-pill.rotating {
+  color: #f7d58a;
+  border-color: rgba(245,158,11,0.32);
+  background: rgba(245,158,11,0.14);
+}
+
+.acc-pill.exhausted {
+  color: #ffb4b4;
+  border-color: rgba(244,71,71,0.35);
+  background: rgba(244,71,71,0.13);
+}
+
+.wayai-input-area {
+  padding: 10px;
+}
+
+.wayai-task-input {
+  min-height: 92px;
+  resize: vertical;
+  padding: 8px 10px;
+}
+
+.wayai-btn-row {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+
+.wayai-current {
+  padding: 10px;
+}
+
+.wayai-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 7px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--t2);
+  letter-spacing: 0.05em;
+}
+
+.wayai-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px;
+  background: var(--bg2);
+  border: 1px solid var(--b1);
+  border-radius: 4px;
+}
+
+.wayai-step {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 24px;
+  font-size: 12px;
+}
+
+.wayai-step-icon {
+  width: 16px;
+  text-align: center;
+  color: var(--t3);
+  flex-shrink: 0;
+}
+
+.wayai-step.running .wayai-step-icon {
+  color: var(--yellow);
+  animation: wayaiSpin 1s linear infinite;
+}
+
+.wayai-step.done .wayai-step-icon { color: var(--green); }
+.wayai-step.error .wayai-step-icon { color: var(--red); }
+.wayai-step.stopped .wayai-step-icon { color: var(--yellow); }
+
+.wayai-step-label {
+  flex: 1;
+  min-width: 0;
+  color: var(--t1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wayai-step-meta {
+  flex-shrink: 0;
+  color: var(--t3);
+  font-size: 10px;
+  font-family: var(--mono);
+}
+
+.wayai-token-bar {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--b1);
+}
+
+.wayai-token-line,
+.wayai-token-breakdown {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.wayai-token-line {
+  font-size: 11px;
+  color: var(--t2);
+}
+
+.wayai-token-line.cloud .wayai-token-dot { color: var(--accent2); }
+.wayai-token-line.local .wayai-token-dot { color: var(--t3); }
+.wayai-token-name,
+.wayai-token-cost { color: var(--t1); }
+
+.wayai-token-sub {
+  margin-top: 4px;
+  color: var(--t3);
+  font-size: 10px;
+}
+
+.wayai-token-breakdown {
+  margin-top: 6px;
+}
+
+.wayai-break-item {
+  color: var(--t3);
+  font-size: 10px;
+}
+
+.wayai-history {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 10px;
+  overflow: hidden;
+}
+
+.wayai-history-item {
+  border-top: 1px solid rgba(255,255,255,0.04);
+}
+
+.wayai-history-main {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: transparent;
+  border: none;
+  color: inherit;
+  padding: 8px 0;
+  text-align: left;
+  cursor: pointer;
+}
+
+.wayai-history-icon {
+  width: 16px;
+  color: var(--t3);
+  flex-shrink: 0;
+}
+
+.wayai-history-icon.done { color: var(--green); }
+.wayai-history-icon.error { color: var(--red); }
+.wayai-history-icon.stopped { color: var(--yellow); }
+
+.wayai-history-title {
+  flex: 1;
+  min-width: 0;
+  color: var(--t1);
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wayai-history-meta,
+.wayai-history-step-meta {
+  color: var(--t3);
+  font-size: 10px;
+  font-family: var(--mono);
+}
+
+.wayai-history-detail {
+  padding: 0 0 8px 24px;
+}
+
+.wayai-history-actions {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+.wayai-history-step {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 22px;
+  color: var(--t2);
+  font-size: 11px;
+}
+
+.wayai-history-step-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.wayai-history-step-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wayai-history-step-preview {
+  color: var(--t3);
+  font-size: 10px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wayai-empty,
+.wayai-info {
+  color: var(--t3);
+  font-size: 11px;
+}
+
+.wayai-info {
+  margin-top: 6px;
+}
+
+@keyframes wayaiSpin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}

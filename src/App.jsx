@@ -11,6 +11,8 @@ import FileExplorer from "./components/FileExplorer.jsx";
 import "./components/FileExplorer.css";
 import TerminalPanel from "./components/Terminal.jsx";
 import "./components/Terminal.css";
+import WayAITab from "./components/WayAITab/WayAITab.jsx";
+import "./components/WayAITab/WayAITab.css";
 import {
   writeFile, langFromPath, langColor, pathExt, LANG_COLOR, MOCK_ROOT,
   detectTools, packageScripts, npmInstall, npmRunScript, pythonRunFile, gitClone,
@@ -1305,6 +1307,7 @@ export default function App() {
       case "ext":      return <ExtPanel workspaceRoot={workspaceRoot} activeFile={activeTab} onOpenSide={id=>{setActivity(id);setSideOpen(true);}} onOutput={line=>{openPanel("output");pushOutput(line);}} manager={manager}/>;
       case "accounts": return <AccountsPanel manager={manager} status={accStatus} refresh={()=>setAccStatus(manager.getStatus())} routerScores={routerScores} routerStrategy={routerStrategy} onStrategy={s=>{setRT(s);manager.router.setStrategy(s);}}/>;
       case "chat":     return <ChatPanel manager={manager} status={accStatus} editorRef={editorRef} lang={lang} code={code} onProposeEdit={showInlineDiff}/>;
+      case "wayai":    return <WayAITab manager={manager} accStatus={accStatus} editorRef={editorRef} code={code} lang={lang} projectRoot={workspaceRoot} activeFile={activeTab} openFiles={tabs.map(t=>t.key)} />;
       default:         return null;
     }
   };
@@ -1319,6 +1322,7 @@ export default function App() {
     { id:"view.git", title:"View: Source Control", group:"View", run:()=>openSide("git") },
     { id:"view.extensions", title:"View: Extensions", group:"View", run:()=>openSide("ext") },
     { id:"view.chat", title:"View: AI Chat", group:"View", run:()=>openSide("chat") },
+    { id:"view.wayai", title:"View: Way AI", group:"View", run:()=>openSide("wayai") },
     { id:"view.accounts", title:"View: Accounts", group:"View", run:()=>openSide("accounts") },
     { id:"panel.terminal", title:"Panel: Focus Terminal", group:"Panel", detail:"Ctrl+`", run:()=>openPanel("terminal") },
     { id:"panel.problems", title:"Panel: Show Problems", group:"Panel", run:()=>openPanel("problems") },
@@ -1372,7 +1376,7 @@ export default function App() {
   ];
 
   // sidebar title
-  const SIDE_TITLES = { files:"EXPLORER",search:"SEARCH",git:"SOURCE CONTROL",ext:"EXTENSIONS",chat:"AI CHAT",accounts:"ACCOUNTS" };
+  const SIDE_TITLES = { files:"EXPLORER",search:"SEARCH",git:"SOURCE CONTROL",ext:"EXTENSIONS",chat:"AI CHAT",wayai:"WAY AI",accounts:"ACCOUNTS" };
 
   return (
     <div className="app">
@@ -1430,6 +1434,7 @@ export default function App() {
           ))}
           <div className="act-spacer"/>
           <button title="AI Chat"  className={`act-btn ${activity==="chat"&&sideOpen?"act-on":""}`}    onClick={()=>switchAct("chat")}><Ic.Chat/></button>
+          <button title="Way AI Agent" className={`act-btn ${activity==="wayai"&&sideOpen?"act-on":""}`} onClick={()=>switchAct("wayai")}><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><polygon points="12 2 22 12 12 22 2 12"/></svg></button>
           <button title="Accounts" className={`act-btn ${activity==="accounts"&&sideOpen?"act-on":""}`} onClick={()=>switchAct("accounts")}><Ic.Accounts/></button>
         </div>
 
