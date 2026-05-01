@@ -535,6 +535,60 @@ const QUICK = [
   {label:"♻️ Refactor", diff:true, fn:(c,l)=>`Refactor this ${l} code to best practices. Return only the complete replacement code block:\n\`\`\`${l}\n${c}\n\`\`\``},
 ];
 
+const AGENT_STORE_KEY = "wayai_chat_agent_v1";
+const AI_AGENTS = [
+  {
+    id: "general",
+    label: "General",
+    hint: "Balanced coding help",
+    instruction: "Act as a practical senior software engineer. Be concise, accurate, and implementation-focused.",
+  },
+  {
+    id: "debugger",
+    label: "Debugger",
+    hint: "Root-cause and fix",
+    instruction: "Act as a debugging specialist. Prioritize root-cause analysis, reproduction steps, and minimal-risk fixes.",
+  },
+  {
+    id: "reviewer",
+    label: "Reviewer",
+    hint: "Risk-focused review",
+    instruction: "Act as a strict code reviewer. Focus on bugs, regressions, security issues, and missing tests first.",
+  },
+  {
+    id: "refactor",
+    label: "Refactor",
+    hint: "Design and cleanup",
+    instruction: "Act as a refactoring expert. Improve structure, naming, readability, and maintainability while preserving behavior.",
+  },
+  {
+    id: "test",
+    label: "Test Writer",
+    hint: "High-value test cases",
+    instruction: "Act as a test engineer. Create focused unit and integration tests that cover edge cases and regressions.",
+  },
+  {
+    id: "security",
+    label: "Security",
+    hint: "Threat-aware coding",
+    instruction: "Act as an application security engineer. Identify vulnerabilities, harden surfaces, and suggest secure defaults.",
+  },
+];
+
+function loadAgentMode() {
+  try {
+    return localStorage.getItem(AGENT_STORE_KEY) || "general";
+  } catch {
+    return "general";
+  }
+}
+
+function saveAgentMode(id) {
+  try {
+    localStorage.setItem(AGENT_STORE_KEY, id);
+  } catch {}
+}
+
 function extractFirstCodeBlock(content = "") {
   const match = content.match(/```[^\n`]*\n([\s\S]*?)```/);
   return (match ? match[1] : content).trim();
@@ -555,10 +609,24 @@ function ChatPanel({ manager, status, editorRef, lang, code, onProposeEdit }) {
   const [input,setInput]   = useState("");
   const [streaming,setStr] = useState(false);
   const [streamTxt,setST]  = useState("");
+  const [agentId, setAgentId] = useState(loadAgentMode);
   const streamRef = useRef("");
   const endRef    = useRef(null);
+  const activeAgent = AI_AGENTS.find(a => a.id === agentId) || AI_AGENTS[0];
 
   useEffect(()=>{ endRef.current?.scrollIntoView({behavior:"smooth"}); },[msgs,streamTxt]);
+  useEffect(() => { saveAgentMode(agentId); }, [agentId]);
+
+  const withAgentInstruction = (prompt) => {
+    return [
+      "System role:",
+      activeAgent.instruction,
+      "Always follow explicit output constraints from the user prompt.",
+      "",
+      "User request:",
+      prompt,
+    ].join("\n");
+  };
 
   const getSel = ()=>{
     const ed=editorRef.current; if(!ed) return "";
@@ -574,9 +642,9 @@ function ChatPanel({ manager, status, editorRef, lang, code, onProposeEdit }) {
     const prov = PROVIDERS[status.active?.provider];
     try {
       const onToken = t=>{ streamRef.current+=t; setST(streamRef.current); };
-      const {result,account} = await manager.call(prompt,{onToken});
+      const {result,account} = await manager.call(withAgentInstruction(prompt),{onToken});
       const final = streamRef.current||result;
-      setMsgs(p=>[...p,{role:"ai",content:final,acLabel:account.label,pColor:PROVIDERS[account.provider]?.color,pIcon:PROVIDERS[account.provider]?.icon}]);
+      setMsgs(p=>[...p,{role:"ai",content:final,acLabel:account.label,pColor:PROVIDERS[account.provider]?.color,pIcon:PROVIDERS[account.provider]?.icon,agentLabel:activeAgent.label}]);
       if (options.inlineDiff && options.range && options.original) {
         const replacement = extractFirstCodeBlock(final);
         if (replacement) onProposeEdit?.({ ...options, replacement });
@@ -598,7 +666,15 @@ function ChatPanel({ manager, status, editorRef, lang, code, onProposeEdit }) {
         {status.active
           ? <div className="chat-acc-tag" style={{color:pColor}}>{pIcon} <span className="chat-acc-name">{status.active.label}</span><span className="chat-acc-model">{status.active.model}</span></div>
           : <div className="chat-acc-tag warn">⚠ No accounts — add in Accounts panel</div>}
-        <span className="chat-acc-count">{(status.accounts||[]).filter(a=>a.status==="active").length} ready</span>
+        <div className="chat-acc-right">
+          <select className="agent-select" value={agentId} onChange={e=>setAgentId(e.target.value)}>
+            {AI_AGENTS.map(a=><option key={a.id} value={a.id}>{a.label}</option>)}
+          </select>
+          <span className="chat-acc-count">{(status.accounts||[]).filter(a=>a.status==="active").length} ready</span>
+        </div>
+      </div>
+      <div className="chat-agent-hint">
+        Agent: <strong>{activeAgent.label}</strong> · {activeAgent.hint}
       </div>
       <div className="chat-quick">
         {QUICK.map(q=>(
@@ -617,7 +693,7 @@ function ChatPanel({ manager, status, editorRef, lang, code, onProposeEdit }) {
       <div className="chat-msgs">
         {msgs.map((m,i)=>(
           <div key={i} className={`msg ${m.role==="user"?"user":"ai"}`}>
-            {m.role==="ai"&&<div className="msg-meta" style={{color:m.pColor||pColor}}>{m.pIcon||pIcon} {m.acLabel||"Way AI"}</div>}
+            {m.role==="ai"&&<div className="msg-meta" style={{color:m.pColor||pColor}}>{m.pIcon||pIcon} {m.acLabel||"Way AI"} · {m.agentLabel || activeAgent.label}</div>}
             <MsgContent content={m.content} onInsert={m.role==="ai"?insertCode:null}/>
           </div>
         ))}
@@ -630,7 +706,7 @@ function ChatPanel({ manager, status, editorRef, lang, code, onProposeEdit }) {
         <div ref={endRef}/>
       </div>
       <div className="chat-input-row">
-        <textarea className="chat-ta" rows={3} placeholder="Ask Way AI Code… (Enter=send, Shift+Enter=newline)"
+        <textarea className="chat-ta" rows={3} placeholder={`Ask ${activeAgent.label}… (Enter=send, Shift+Enter=newline)`}
           value={input} onChange={e=>setInput(e.target.value)}
           onKeyDown={e=>{
             if(e.key==="Enter"&&!e.shiftKey){
