@@ -23,12 +23,12 @@ const SHELLS = IS_TAURI
   : [{ id:"browser", label:"Browser Sim", command:"browser", args:[] }];
 
 const XTERM_THEME = {
-  background:"#1e1e1e", foreground:"#cccccc", cursor:"#aeafad", cursorAccent:"#1e1e1e",
-  black:"#1e1e1e", red:"#f44747", green:"#608b4e", yellow:"#dcdcaa",
-  blue:"#569cd6", magenta:"#c678dd", cyan:"#4ec9b0", white:"#d4d4d4",
-  brightBlack:"#808080", brightRed:"#f44747", brightGreen:"#4ec9b0",
-  brightYellow:"#dcdcaa", brightBlue:"#569cd6", brightMagenta:"#c678dd",
-  brightCyan:"#9cdcfe", brightWhite:"#ffffff",
+  background:"#111318", foreground:"#d7dbe6", cursor:"#66d9ef", cursorAccent:"#111318",
+  black:"#111318", red:"#ff5d73", green:"#7fd76a", yellow:"#f7c85e",
+  blue:"#6da9ff", magenta:"#cf8bff", cyan:"#4fe2d7", white:"#d7dbe6",
+  brightBlack:"#7b8699", brightRed:"#ff7a8f", brightGreen:"#94ea7f",
+  brightYellow:"#ffd87d", brightBlue:"#8ebeff", brightMagenta:"#deacff",
+  brightCyan:"#75f0e7", brightWhite:"#ffffff",
 };
 
 const _pty = {};
@@ -126,7 +126,7 @@ function simCmd(raw, cwd, setCwd) {
   }
 }
 
-function TermInstance({ termId, shell, active }) {
+function TermInstance({ termId, shell, active, actionSignal }) {
   const containerRef = useRef(null);
   const xtermRef = useRef(null);
   const fitRef = useRef(null);
@@ -137,8 +137,43 @@ function TermInstance({ termId, shell, active }) {
   const histIdx = useRef(-1);
 
   const prompt = useCallback(() => {
-    xtermRef.current?.write(`\r\n${G}${cwd.current}${R} ${C}$${R} `);
+    xtermRef.current?.write(`\r\n${G}${cwd.current}${R} ${C}>${R} `);
   }, []);
+
+  const pasteFromClipboard = useCallback(async () => {
+    try {
+      const text = await navigator.clipboard.readText();
+      if (!text) return;
+      if (IS_TAURI) {
+        await writePTY(termId, text);
+      } else {
+        buf.current += text;
+        xtermRef.current?.write(text);
+      }
+    } catch {}
+  }, [termId]);
+
+  const copySelection = useCallback(async () => {
+    const term = xtermRef.current;
+    if (!term?.hasSelection()) return;
+    const sel = term.getSelection();
+    if (!sel) return;
+    try { await navigator.clipboard.writeText(sel); } catch {}
+  }, []);
+
+  const clearTerminal = useCallback(async () => {
+    const term = xtermRef.current;
+    if (!term) return;
+    term.clear();
+    if (IS_TAURI) {
+      await writePTY(termId, `${IS_WINDOWS ? "cls" : "clear"}\r`);
+      return;
+    }
+    buf.current = "";
+    histIdx.current = -1;
+    term.writeln(`${D}Screen cleared${R}`);
+    prompt();
+  }, [prompt, termId]);
 
   useEffect(() => {
     if (!containerRef.current || xtermRef.current) return undefined;
@@ -155,10 +190,10 @@ function TermInstance({ termId, shell, active }) {
           theme: XTERM_THEME,
           fontFamily: "'JetBrains Mono','Cascadia Code',Consolas,monospace",
           fontSize: 13,
-          lineHeight: 1.4,
+          lineHeight: 1.45,
           cursorBlink: true,
-          cursorStyle: "block",
-          scrollback: 8000,
+          cursorStyle: "bar",
+          scrollback: 10000,
           convertEol: true,
           allowProposedApi: true,
           copyOnSelectionChange: true,
@@ -173,51 +208,37 @@ function TermInstance({ termId, shell, active }) {
         xtermRef.current = term;
         fitRef.current = fit;
 
-        // Clipboard: Ctrl+C copies selection, Ctrl+V pastes
+        term.clear();
+        term.writeln(`${C}Way AI Code Terminal${R} ${D}${shell.label}${R}`);
+        term.writeln(`${D}Shortcuts: Ctrl+Shift+C copy | Ctrl+Shift+V paste | Ctrl+L clear${R}`);
+
         term.attachCustomKeyEventHandler((e) => {
           if (e.type !== "keydown") return true;
-          if (e.ctrlKey && e.key === "v") {
-            navigator.clipboard.readText()
-              .then(text => {
-                if (!text) return;
-                if (IS_TAURI) {
-                  writePTY(termId, text);
-                } else {
-                  buf.current += text;
-                  term.write(text);
-                }
-              })
-              .catch(() => {});
-            return false; // suppress default
+
+          if ((e.ctrlKey && e.shiftKey && e.key.toLowerCase() === "c") || (e.ctrlKey && e.key.toLowerCase() === "c" && xtermRef.current?.hasSelection())) {
+            copySelection();
+            return false;
           }
-          if (e.ctrlKey && e.key === "c" && term.hasSelection()) {
-            const sel = term.getSelection();
-            if (sel) {
-              navigator.clipboard.writeText(sel).catch(() => {});
-              return false;
-            }
+
+          if ((e.ctrlKey && e.shiftKey && e.key.toLowerCase() === "v") || (e.ctrlKey && e.key.toLowerCase() === "v")) {
+            pasteFromClipboard();
+            return false;
           }
+
+          if (e.ctrlKey && e.key.toLowerCase() === "l") {
+            clearTerminal();
+            return false;
+          }
+
           return true;
         });
 
-        // Right-click context menu
         containerRef.current.addEventListener("contextmenu", (e) => {
           e.preventDefault();
-          const sel = term.getSelection();
-          if (sel) {
-            navigator.clipboard.writeText(sel).catch(() => {});
-          } else {
-            navigator.clipboard.readText()
-              .then(text => {
-                if (!text) return;
-                if (IS_TAURI) writePTY(termId, text);
-                else { buf.current += text; term.write(text); }
-              })
-              .catch(() => {});
-          }
+          if (term.hasSelection()) copySelection();
+          else pasteFromClipboard();
         });
 
-        term.writeln(`${C}Way AI Code Terminal${R} ${D}${shell.label}${R}`);
         if (IS_TAURI) {
           await spawnPTY(termId, shell, d => { term.write(d); term.scrollToBottom(); }, () => {});
           term.onData(d => writePTY(termId, d));
@@ -242,7 +263,7 @@ function TermInstance({ termId, shell, active }) {
                 histIdx.current++;
                 const s = hist.current[histIdx.current];
                 term.write("\r\x1b[K");
-                term.write(`${G}${cwd.current}${R} ${C}$${R} ${s}`);
+                term.write(`${G}${cwd.current}${R} ${C}>${R} ${s}`);
                 buf.current = s;
               }
             } else if (k === "ArrowDown") {
@@ -250,12 +271,12 @@ function TermInstance({ termId, shell, active }) {
                 histIdx.current--;
                 const s = hist.current[histIdx.current];
                 term.write("\r\x1b[K");
-                term.write(`${G}${cwd.current}${R} ${C}$${R} ${s}`);
+                term.write(`${G}${cwd.current}${R} ${C}>${R} ${s}`);
                 buf.current = s;
               } else if (histIdx.current === 0) {
                 histIdx.current = -1;
                 term.write("\r\x1b[K");
-                term.write(`${G}${cwd.current}${R} ${C}$${R} `);
+                term.write(`${G}${cwd.current}${R} ${C}>${R} `);
                 buf.current = "";
               }
             } else if (domEvent.ctrlKey && k.toLowerCase() === "c") {
@@ -264,9 +285,8 @@ function TermInstance({ termId, shell, active }) {
               histIdx.current = -1;
               prompt();
             } else if (domEvent.ctrlKey && k.toLowerCase() === "l") {
-              term.clear();
-              prompt();
-            } else if (key && !domEvent.ctrlKey && !domEvent.altKey && !domEvent.metaKey) {
+              clearTerminal();
+            } else if (key && key.length === 1 && !domEvent.ctrlKey && !domEvent.altKey && !domEvent.metaKey) {
               buf.current += key;
               term.write(key);
             }
@@ -292,18 +312,24 @@ function TermInstance({ termId, shell, active }) {
       xtermRef.current = null;
       fitRef.current = null;
     };
-  }, [prompt, shell, termId]);
+  }, [prompt, shell, termId, clearTerminal, copySelection, pasteFromClipboard]);
 
   useEffect(() => {
-    if (active) {
-      setTimeout(() => {
-        try {
-          fitRef.current?.fit();
-          xtermRef.current?.focus();
-        } catch {}
-      }, 60);
-    }
+    if (!active) return;
+    setTimeout(() => {
+      try {
+        fitRef.current?.fit();
+        xtermRef.current?.focus();
+      } catch {}
+    }, 60);
   }, [active]);
+
+  useEffect(() => {
+    if (!active || !actionSignal?.id) return;
+    if (actionSignal.type === "clear") clearTerminal();
+    if (actionSignal.type === "copy") copySelection();
+    if (actionSignal.type === "paste") pasteFromClipboard();
+  }, [actionSignal, active, clearTerminal, copySelection, pasteFromClipboard]);
 
   return <div ref={containerRef} className="xterm-container" style={{ display:active ? "flex" : "none" }}/>;
 }
@@ -315,9 +341,14 @@ export default function TerminalPanel({ onClose, embedded = false, height: contr
   const [activeId, setActiveId] = useState(tabs[0]?.id || null);
   const [profileId, setProfileId] = useState(SHELLS[0].id);
   const [height, setHeight] = useState(220);
+  const [actionSignal, setActionSignal] = useState({ id: 0, type: "" });
   const panelHeight = controlledHeight ?? height;
   const selectedShell = SHELLS.find(s => s.id === profileId) || SHELLS[0];
   const activeTab = tabs.find(t => t.id === activeId) || tabs[0];
+
+  const emitAction = useCallback((type) => {
+    setActionSignal({ id: Date.now(), type });
+  }, []);
 
   const addTab = useCallback((shell = selectedShell, titlePrefix = "") => {
     const id = _nid++;
@@ -373,22 +404,30 @@ export default function TerminalPanel({ onClose, embedded = false, height: contr
         <div className="term-toolbar-left">
           <span className="term-section-title">TERMINAL</span>
           <span className="term-active-title">{activeTab?.title || "No terminal"}</span>
+          <div className="term-shortcuts">
+            <span className="term-chip">Copy Ctrl+Shift+C</span>
+            <span className="term-chip">Paste Ctrl+Shift+V</span>
+            <span className="term-chip">Clear Ctrl+L</span>
+          </div>
         </div>
         <div className="term-toolbar-actions">
           <select className="term-profile" value={profileId} title="Terminal profile" onChange={e=>setProfileId(e.target.value)}>
             {SHELLS.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
           </select>
+          <button className="term-icon-btn soft" title="Copy" disabled={!tabs.length} onClick={() => emitAction("copy")}>Copy</button>
+          <button className="term-icon-btn soft" title="Paste" disabled={!tabs.length} onClick={() => emitAction("paste")}>Paste</button>
+          <button className="term-icon-btn soft" title="Clear" disabled={!tabs.length} onClick={() => emitAction("clear")}>Clear</button>
           <button className="term-icon-btn" title="New Terminal" onClick={()=>addTab()}>+</button>
-          <button className="term-icon-btn" title="Split Terminal" disabled={!tabs.length} onClick={splitTerminal}>⇲</button>
-          <button className="term-icon-btn" title="Kill Terminal" disabled={!tabs.length} onClick={killActive}>🗑</button>
-          <button className="term-icon-btn" title="Kill All Terminals" disabled={!tabs.length} onClick={killAll}>×</button>
-          {onClose && <button className="term-icon-btn" title="Close Panel" onClick={onClose}>▾</button>}
+          <button className="term-icon-btn" title="Split Terminal" disabled={!tabs.length} onClick={splitTerminal}>||</button>
+          <button className="term-icon-btn" title="Kill Terminal" disabled={!tabs.length} onClick={killActive}>x</button>
+          <button className="term-icon-btn" title="Kill All Terminals" disabled={!tabs.length} onClick={killAll}>xx</button>
+          {onClose && <button className="term-icon-btn" title="Close Panel" onClick={onClose}>v</button>}
         </div>
       </div>
       <div className="term-workspace">
         <div className="term-body">
           {tabs.length ? (
-            tabs.map(t => <TermInstance key={t.id} termId={t.id} shell={t.shell} active={t.id===activeId}/>)
+            tabs.map(t => <TermInstance key={t.id} termId={t.id} shell={t.shell} active={t.id===activeId} actionSignal={actionSignal}/>)
           ) : (
             <div className="term-empty">
               <div>No terminal session</div>
@@ -399,9 +438,9 @@ export default function TerminalPanel({ onClose, embedded = false, height: contr
         <div className="term-session-list">
           {tabs.map(t => (
             <button key={t.id} className={`term-session ${t.id===activeId ? "active" : ""}`} onClick={()=>setActiveId(t.id)} title={t.title}>
-              <span className="term-session-icon">›_</span>
+              <span className="term-session-icon">{" >_"}</span>
               <span className="term-session-name">{t.title}</span>
-              <span className="term-session-close" onClick={e=>{e.stopPropagation();closeTab(t.id);}}>×</span>
+              <span className="term-session-close" onClick={e=>{e.stopPropagation();closeTab(t.id);}}>x</span>
             </button>
           ))}
         </div>
@@ -409,3 +448,4 @@ export default function TerminalPanel({ onClose, embedded = false, height: contr
     </div>
   );
 }
+
