@@ -20,7 +20,8 @@ export const PROVIDERS = {
 const LIMIT_PATTERNS = [
   /rate.?limit/i,/quota/i,/too.?many.?requests/i,
   /429/,/insufficient.?quota/i,/limit.?exceeded/i,
-  /billing/i,/credits?.?exhausted/i,/overloaded/i,/503/,
+  /billing/i,/credits?.?exhausted/i,/insufficient.?credits?/i,
+  /credit.?balance/i,/too.?low.?to.?access/i,/overloaded/i,/503/,
 ];
 
 const COPILOT_PATTERNS = [
@@ -530,65 +531,4 @@ export class AccountManager {
 
   getStatus() { return this._status(); }
   getAll()    { return this.accounts; }
-
-  async testAccount(id) {
-    const a = this._find(id);
-    if (!a) return { ok: false, message: "Account not found" };
-    const provider = PROVIDERS[a.provider] || {};
-
-    // Local providers — just ping the local server
-    if (provider.local) {
-      const url = a.provider === "ollama"
-        ? "http://localhost:11434/api/tags"
-        : "http://localhost:1234/v1/models";
-      try {
-        const r = await fetch(url, { signal: AbortSignal.timeout(5000) });
-        if (r.ok) { a.status = "active"; a._streak = 0; this._save(); return { ok: true, message: `${provider.label}: reachable ✓` }; }
-        return { ok: false, message: `${provider.label}: server responded with ${r.status}` };
-      } catch {
-        return { ok: false, message: `${provider.label}: not running. Start ${provider.label} locally.` };
-      }
-    }
-
-    // Cloud providers — need a key
-    let apiKey = a.apiKey;
-    if (a.provider === "copilot" && !apiKey) {
-      try { apiKey = await this.getGitHubToken(); } catch { /**/ }
-    }
-    if (!apiKey) return { ok: false, message: `${provider.label}: no API key set. Add a key in Accounts.` };
-
-    try {
-      const t0 = performance.now();
-      if (a.provider === "gemini") {
-        const r = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/${a.model || "gemini-2.0-flash"}:generateContent?key=${apiKey}`,
-          { method: "POST", headers: { "Content-Type": "application/json" }, signal: AbortSignal.timeout(10000),
-            body: JSON.stringify({ contents: [{ parts: [{ text: "hi" }] }] }) }
-        );
-        if (!r.ok) { const t = await r.text(); return { ok: false, message: `Gemini ${r.status}: ${t.slice(0, 120)}` }; }
-      } else if (a.provider === "claude") {
-        const r = await fetch("https://api.anthropic.com/v1/messages", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01", "anthropic-dangerous-direct-browser-access": "true" },
-          signal: AbortSignal.timeout(10000),
-          body: JSON.stringify({ model: a.model || "claude-haiku-4-5", max_tokens: 10, messages: [{ role: "user", content: "hi" }] }),
-        });
-        if (!r.ok) { const t = await r.text(); return { ok: false, message: `Claude ${r.status}: ${t.slice(0, 120)}` }; }
-      } else {
-        const base = a.baseUrl || provider.baseUrl || "https://api.openai.com/v1";
-        const r = await fetch(`${base}/chat/completions`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json", "Authorization": `Bearer ${apiKey}` },
-          signal: AbortSignal.timeout(10000),
-          body: JSON.stringify({ model: a.model, max_tokens: 5, messages: [{ role: "user", content: "hi" }] }),
-        });
-        if (!r.ok) { const t = await r.text(); return { ok: false, message: `${provider.label} ${r.status}: ${t.slice(0, 120)}` }; }
-      }
-      const ms = Math.round(performance.now() - t0);
-      a.status = "active"; a._streak = 0; this._save();
-      return { ok: true, message: `${provider.label}: connected ✓ (${ms}ms)` };
-    } catch (err) {
-      return { ok: false, message: `${provider.label}: ${String(err?.message || err).slice(0, 120)}` };
-    }
-  }
 }
