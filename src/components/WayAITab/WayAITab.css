@@ -145,6 +145,12 @@
 .wayai-blueprint span { font-size: 10px; color: var(--t3); }
 .wayai-blueprint:disabled { opacity: 0.45; cursor: not-allowed; }
 
+.btn-secondary.on {
+  border-color: var(--accent2);
+  color: var(--accent2);
+  background: rgba(17,119,187,0.12);
+}
+
 .wayai-intel {
   padding: 10px;
 }
@@ -244,6 +250,85 @@
 .wayai-current {
   padding: 10px;
 }
+
+.wayai-forecast {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+
+.wayai-forecast span {
+  padding: 4px 7px;
+  border: 1px solid var(--b1);
+  border-radius: 999px;
+  background: var(--bg2);
+  color: var(--t3);
+  font-size: 10px;
+  text-transform: uppercase;
+}
+
+.wayai-shadow-preview {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--b1);
+}
+
+.wayai-preview-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.wayai-preview-item {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  padding: 8px;
+  background: var(--bg2);
+  border: 1px solid var(--b1);
+  border-radius: 4px;
+}
+
+.wayai-preview-kind {
+  width: 52px;
+  flex-shrink: 0;
+  color: var(--accent2);
+  font-size: 10px;
+  font-family: var(--mono);
+  text-transform: uppercase;
+}
+
+.wayai-preview-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.wayai-preview-main strong {
+  color: var(--t1);
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wayai-preview-main span {
+  color: var(--t3);
+  font-size: 10px;
+  word-break: break-word;
+}
+
+.wayai-preview-state {
+  flex-shrink: 0;
+  font-size: 10px;
+  text-transform: uppercase;
+}
+
+.wayai-preview-state.simulated { color: var(--yellow); }
+.wayai-preview-state.live { color: var(--green); }
 
 .wayai-debug {
   padding: 10px;

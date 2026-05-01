@@ -88,6 +88,7 @@ export default function WayAITab({ manager, accStatus, editorRef, code, lang, pr
   const [currentTask, setCurrentTask] = useState(null);
   const [history, setHistory] = useState(loadHistory);
   const [streaming, setStreaming] = useState(false);
+  const [shadowMode, setShadowMode] = useState(false);
   const [debugLog, setDebugLog] = useState([]);
   const [tokenStats, setTokenStats] = useState({
     currentInput: 0,
@@ -208,10 +209,12 @@ export default function WayAITab({ manager, accStatus, editorRef, code, lang, pr
     },
   });
 
-  const runAgent = async (input = taskInput) => {
+  const runAgent = async (input = taskInput, options = {}) => {
     if (!input.trim() || streaming) return;
     const selection = currentSelection(editorRef);
-    pushDebug(`Run requested: ${input.slice(0, 120)}`, "info");
+    const dryRun = !!options.dryRun;
+    setShadowMode(dryRun);
+    pushDebug(`${dryRun ? "Shadow run" : "Run"} requested: ${input.slice(0, 120)}`, "info");
     setTokenStats(prev => ({ ...prev, currentInput: 0, currentOutput: 0, tokensPerSecond: 0, estimatedCost: 0, rotationMessage: "" }));
     const runner = buildRunner();
     runnerRef.current = runner;
@@ -223,6 +226,7 @@ export default function WayAITab({ manager, accStatus, editorRef, code, lang, pr
         projectRoot: projectRoot || MOCK_ROOT,
         language: lang,
         selectedCode: selection,
+        dryRun,
       });
     } catch (error) {
       if (String(error?.message || error) === "Task stopped") {
@@ -311,6 +315,7 @@ export default function WayAITab({ manager, accStatus, editorRef, code, lang, pr
         />
         <div className="wayai-btn-row">
           <button className="btn-primary" disabled={streaming || !taskInput.trim()} onClick={() => runAgent()}>{streaming ? "Running…" : "Run Agent"}</button>
+          <button className={`btn-secondary ${shadowMode ? "on" : ""}`} disabled={streaming || !taskInput.trim()} onClick={() => runAgent(taskInput, { dryRun: true })}>Shadow Run</button>
           <button className="btn-secondary" disabled={streaming} onClick={() => { const prompt = quickPrompt("fix", code, lang, currentSelection(editorRef)); setTaskInput(prompt); runAgent(prompt); }}>Quick Fix</button>
           <button className="btn-secondary" disabled={streaming} onClick={() => { const prompt = quickPrompt("explain", code, lang, currentSelection(editorRef)); setTaskInput(prompt); runAgent(prompt); }}>Explain</button>
           <button className="btn-secondary" disabled={!streaming} onClick={stopAgent}>Stop</button>
@@ -364,9 +369,16 @@ export default function WayAITab({ manager, accStatus, editorRef, code, lang, pr
       </div>
 
       <div className="wayai-current">
-        <div className="wayai-section-head"><span>CURRENT TASK</span><span className="wayai-info">{currentTask?.status || "idle"}</span></div>
+        <div className="wayai-section-head"><span>CURRENT TASK</span><span className="wayai-info">{currentTask?.dryRun ? "shadow" : currentTask?.status || "idle"}</span></div>
         {currentTask ? (
           <>
+            <div className="wayai-forecast">
+              <span>reads {currentTask.forecast?.reads || 0}</span>
+              <span>writes {currentTask.forecast?.writes || 0}</span>
+              <span>search {currentTask.forecast?.searches || 0}</span>
+              <span>commands {currentTask.forecast?.commands || 0}</span>
+              <span>ai {currentTask.forecast?.aiCalls || 0}</span>
+            </div>
             <div className="wayai-steps">
               {currentTask.steps.map(step => {
                 const icon = step.status === "done" ? "✓" : step.status === "error" ? "✕" : step.status === "running" ? "⟳" : step.status === "stopped" ? "■" : "○";
@@ -379,6 +391,23 @@ export default function WayAITab({ manager, accStatus, editorRef, code, lang, pr
                 );
               })}
             </div>
+            {!!currentTask.previews?.length && (
+              <div className="wayai-shadow-preview">
+                <div className="wayai-section-head"><span>IMPACT PREVIEW</span><span className="wayai-info">{currentTask.dryRun ? "simulated" : "executed"}</span></div>
+                <div className="wayai-preview-list">
+                  {currentTask.previews.map((preview, index) => (
+                    <div key={`${preview.kind}_${index}`} className="wayai-preview-item">
+                      <span className="wayai-preview-kind">{preview.kind}</span>
+                      <div className="wayai-preview-main">
+                        <strong>{preview.path || preview.command || "agent output"}</strong>
+                        <span>{preview.summary}</span>
+                      </div>
+                      <span className={`wayai-preview-state ${preview.simulated ? "simulated" : "live"}`}>{preview.simulated ? "simulated" : "live"}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
             <TokenTracker stats={tokenStats} accounts={accStatus.accounts || []} activeAccountId={accStatus.activeId} />
           </>
         ) : <div className="wayai-empty">No active task</div>}

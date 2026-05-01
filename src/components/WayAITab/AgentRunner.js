@@ -157,11 +157,21 @@ export class AgentRunner {
       startedAt: Date.now(),
       completedAt: null,
       accountId: this.manager.getStatus()?.activeId || null,
+      dryRun: !!context.dryRun,
+      forecast: { reads: 0, writes: 0, searches: 0, commands: 0, aiCalls: 0 },
+      previews: [],
     };
+
+    for (const step of plan.steps) {
+      if (step.type === "read_file") task.forecast.reads += 1;
+      else if (step.type === "write_file") task.forecast.writes += 1;
+      else if (step.type === "search_files" || step.type === "search") task.forecast.searches += 1;
+      else if (step.type === "run_command") task.forecast.commands += 1;
+      else task.forecast.aiCalls += 1;
+    }
 
     const memory = { fileContents: {}, lastAiResponse: "", searchResults: [], lastCommand: null, context };
     this.onStep?.({ kind: "task_started", task: structuredClone(task) });
-
     try {
       for (let index = 0; index < plan.steps.length; index += 1) {
         if (this.stopped) {
@@ -189,6 +199,7 @@ export class AgentRunner {
           output: result.summary,
           tokens: result.tokens || 0,
         };
+        if (result.preview) task.previews.push(result.preview);
         task.totalTokens += result.tokens || 0;
         task.totalCost += result.cost || 0;
         if (result.accountId) task.accountId = result.accountId;
@@ -262,13 +273,21 @@ export class AgentRunner {
     const nextContent = step.content || extractFirstCodeBlock(memory.lastAiResponse);
     if (!nextContent) throw new Error(`No generated content available for ${step.path}`);
     const previous = memory.fileContents[step.path] || "";
-    await this.fsApi.writeFile(step.path, nextContent);
+    if (!memory.context?.dryRun) {
+      await this.fsApi.writeFile(step.path, nextContent);
+    }
     memory.fileContents[step.path] = nextContent;
     return {
-      summary: `Wrote ${step.path}`,
+      summary: `${memory.context?.dryRun ? "Simulated write" : "Wrote"} ${step.path}`,
       tokens: roughTokenCountEstimation(nextContent),
       cost: 0,
       diff: this._simpleDiff(previous, nextContent),
+      preview: {
+        kind: "write",
+        path: step.path,
+        simulated: !!memory.context?.dryRun,
+        summary: shortText(nextContent, 140),
+      },
     };
   }
 
@@ -285,12 +304,31 @@ export class AgentRunner {
   async _runCommandStep(step, context, memory) {
     if (!this.terminalApi?.run) throw new Error("Terminal API unavailable");
     this._validateCommand(step.command || "");
+    if (context.dryRun) {
+      return {
+        summary: `Simulated command ${step.command}`,
+        tokens: roughTokenCountEstimation(step.command || ""),
+        cost: 0,
+        preview: {
+          kind: "command",
+          simulated: true,
+          command: step.command,
+          summary: `Would run: ${step.command}`,
+        },
+      };
+    }
     const result = await this.terminalApi.run(context.projectRoot, step.command || "", step.timeoutSecs || 45);
     memory.lastCommand = result;
     return {
       summary: `Ran ${step.command}`,
       tokens: roughTokenCountEstimation(`${result.stdout || ""}\n${result.stderr || ""}`),
       cost: 0,
+      preview: {
+        kind: "command",
+        simulated: false,
+        command: step.command,
+        summary: shortText(`${result.stdout || ""}\n${result.stderr || ""}`, 140),
+      },
     };
   }
 
