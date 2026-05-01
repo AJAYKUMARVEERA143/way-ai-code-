@@ -1,0 +1,15 @@
+node_modules
+
+# Build output
+dist
+
+# Logs
+*.log
+*.err.log
+
+# Tauri build artifacts
+src-tauri/target
+
+# OS/editor cruft
+.DS_Store
+Thumbs.db
