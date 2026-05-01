@@ -6,6 +6,7 @@ import TokenTracker from "./TokenTracker.jsx";
 import TaskHistory from "./TaskHistory.jsx";
 
 const HISTORY_KEY = "wayai_task_history";
+const DEBUG_LOG_LIMIT = 80;
 
 function loadHistory() {
   try {
@@ -37,11 +38,16 @@ function quickPrompt(kind, code, lang, selection) {
   return `Review this ${lang} code and suggest a pragmatic implementation plan.\n\n\`\`\`${lang}\n${target}\n\`\`\``;
 }
 
+function stamp() {
+  return new Date().toLocaleTimeString();
+}
+
 export default function WayAITab({ manager, accStatus, editorRef, code, lang, projectRoot, activeFile, openFiles }) {
   const [taskInput, setTaskInput] = useState("");
   const [currentTask, setCurrentTask] = useState(null);
   const [history, setHistory] = useState(loadHistory);
   const [streaming, setStreaming] = useState(false);
+  const [debugLog, setDebugLog] = useState([]);
   const [tokenStats, setTokenStats] = useState({
     currentInput: 0,
     currentOutput: 0,
@@ -86,6 +92,10 @@ export default function WayAITab({ manager, accStatus, editorRef, code, lang, pr
     setHistory(prev => [safeTask, ...prev].slice(0, 50));
   };
 
+  const pushDebug = (message, tone = "info") => {
+    setDebugLog(prev => [{ id: `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`, at: stamp(), tone, message }, ...prev].slice(0, DEBUG_LOG_LIMIT));
+  };
+
   const buildRunner = () => new AgentRunner({
     manager,
     fsApi: { readFile, writeFile, searchFiles },
@@ -94,14 +104,22 @@ export default function WayAITab({ manager, accStatus, editorRef, code, lang, pr
       if (event.kind === "task_started") {
         setCurrentTask(event.task);
         setStreaming(true);
+        pushDebug(`Task started: ${event.task.title}`, "info");
         return;
       }
-      if (event.kind === "step_started" || event.kind === "step_completed") {
+      if (event.kind === "step_started") {
         setCurrentTask(event.task);
+        pushDebug(`Step started: ${event.step.label}`, "info");
+        return;
+      }
+      if (event.kind === "step_completed") {
+        setCurrentTask(event.task);
+        pushDebug(`Step ${event.step.status}: ${event.step.label}${event.step.output ? ` — ${event.step.output}` : ""}`, event.step.status === "error" ? "error" : event.step.status === "done" ? "ok" : "warn");
         return;
       }
       if (event.kind === "info") {
         setTokenStats(prev => ({ ...prev, rotationMessage: event.message }));
+        pushDebug(event.message, "warn");
       }
     },
     onToken: (sample) => {
@@ -129,6 +147,7 @@ export default function WayAITab({ manager, accStatus, editorRef, code, lang, pr
     onComplete: (task) => {
       setStreaming(false);
       setCurrentTask(task);
+      pushDebug(`Task completed: ${task.title} · ${Number(task.totalTokens || 0).toLocaleString()} tok`, "ok");
       setTokenStats(prev => ({
         ...prev,
         sessionInput: prev.sessionInput + prev.currentInput,
@@ -140,6 +159,7 @@ export default function WayAITab({ manager, accStatus, editorRef, code, lang, pr
     },
     onError: (_error, task) => {
       setStreaming(false);
+      pushDebug(`Task error: ${String(_error?.message || _error)}`, "error");
       if (task) {
         setCurrentTask(task);
         appendHistory(task);
@@ -150,6 +170,7 @@ export default function WayAITab({ manager, accStatus, editorRef, code, lang, pr
   const runAgent = async (input = taskInput) => {
     if (!input.trim() || streaming) return;
     const selection = currentSelection(editorRef);
+    pushDebug(`Run requested: ${input.slice(0, 120)}`, "info");
     setTokenStats(prev => ({ ...prev, currentInput: 0, currentOutput: 0, tokensPerSecond: 0, estimatedCost: 0, rotationMessage: "" }));
     const runner = buildRunner();
     runnerRef.current = runner;
@@ -164,9 +185,11 @@ export default function WayAITab({ manager, accStatus, editorRef, code, lang, pr
       });
     } catch (error) {
       if (String(error?.message || error) === "Task stopped") {
+        pushDebug("Task stopped by user", "warn");
         setCurrentTask(prev => prev ? { ...prev, status: "stopped", completedAt: Date.now() } : prev);
         return;
       }
+      pushDebug(`Unhandled task error: ${String(error?.message || error)}`, "error");
       setCurrentTask(prev => prev ? { ...prev, status: "error", error: String(error?.message || error), completedAt: Date.now() } : null);
     } finally {
       runnerRef.current = null;
@@ -175,6 +198,7 @@ export default function WayAITab({ manager, accStatus, editorRef, code, lang, pr
 
   const stopAgent = () => {
     runnerRef.current?.stop();
+    pushDebug("Stop requested", "warn");
     setStreaming(false);
     setCurrentTask(prev => prev ? { ...prev, status: "stopped", completedAt: Date.now() } : prev);
   };
@@ -254,6 +278,21 @@ export default function WayAITab({ manager, accStatus, editorRef, code, lang, pr
             <TokenTracker stats={tokenStats} accounts={accStatus.accounts || []} activeAccountId={accStatus.activeId} />
           </>
         ) : <div className="wayai-empty">No active task</div>}
+      </div>
+
+      <div className="wayai-debug">
+        <div className="wayai-section-head">
+          <span>DEBUG LOG</span>
+          <button className="btn-tiny" onClick={() => setDebugLog([])} title="Clear debug log">Clear</button>
+        </div>
+        <div className="wayai-debug-list">
+          {debugLog.length ? debugLog.map(entry => (
+            <div key={entry.id} className={`wayai-debug-item ${entry.tone}`}>
+              <span className="wayai-debug-time">{entry.at}</span>
+              <span className="wayai-debug-msg">{entry.message}</span>
+            </div>
+          )) : <div className="wayai-empty">No debug events yet</div>}
+        </div>
       </div>
 
       <TaskHistory
