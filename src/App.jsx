@@ -6,7 +6,7 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import Editor from "@monaco-editor/react";
-import { AccountManager, PROVIDERS, autoDetect, setSecureKey, getSecureKey } from "./lib/AccountManager.js";
+import { AccountManager, PROVIDERS, autoDetect } from "./lib/AccountManager.js";
 import FileExplorer from "./components/FileExplorer.jsx";
 import "./components/FileExplorer.css";
 import TerminalPanel from "./components/Terminal.jsx";
@@ -179,7 +179,7 @@ function formatToolOutput(out) {
   return parts.join("\n").trim() || `Exit code ${out.code}`;
 }
 
-function ExtPanel({ workspaceRoot, activeFile, onOpenSide, onOutput }) {
+function ExtPanel({ workspaceRoot, activeFile, onOpenSide, onOutput, manager }) {
   const [q, setQ] = useState("");
   const [cat, setCat] = useState("All");
   const [state, setState] = useState(loadExtState);
@@ -189,7 +189,7 @@ function ExtPanel({ workspaceRoot, activeFile, onOpenSide, onOutput }) {
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
   const [githubToken, setGithubToken] = useState("");
-  useEffect(() => { getSecureKey("github_token").then(k => { if (k) setGithubToken(k); }); }, []);
+  useEffect(() => { manager.getGitHubToken().then(k => { if (k) setGithubToken(k); }); }, [manager]);
   const [githubRepos, setGithubRepos] = useState([]);
   const [cloneTarget, setCloneTarget] = useState(workspaceRoot || MOCK_ROOT);
 
@@ -242,7 +242,7 @@ function ExtPanel({ workspaceRoot, activeFile, onOpenSide, onOutput }) {
   };
 
   const saveGithubToken = () => {
-    setSecureKey("github_token", githubToken.trim());
+    manager.setGitHubToken(githubToken.trim());
     setNotice("GitHub token saved");
     setTimeout(()=>setNotice(""), 1800);
   };
@@ -396,7 +396,7 @@ function AccountsPanel({ manager, status, refresh, routerScores, routerStrategy,
   const totalTokens = accounts.reduce((n,a)=>n+(a.tokensIn||0)+(a.tokensOut||0),0);
   const totalCost = accounts.reduce((n,a)=>n+(a.costUsd||0),0);
   const fmtCost = n => n ? `$${n.toFixed(n < 0.01 ? 4 : 2)}` : "$0.00";
-  const doAdd = () => { manager.add({...form}); setForm({provider:"chatgpt",label:"",apiKey:"",model:""}); setShowAdd(false); refresh(); };
+  const doAdd = async () => { await manager.add({...form}); setForm({provider:"chatgpt",label:"",apiKey:"",model:""}); setShowAdd(false); refresh(); };
 
   return (
     <div className="panel-scroll">
@@ -444,7 +444,7 @@ function AccountsPanel({ manager, status, refresh, routerScores, routerStrategy,
         const accs = accounts.filter(a=>a.provider===pid);
         if (!accs.length) return null;
         const rs = routerScores[pid];
-        const doSignOut = (e) => { e.stopPropagation(); accs.forEach(a=>manager.remove(a.id)); refresh(); };
+        const doSignOut = async (e) => { e.stopPropagation(); for (const a of accs) await manager.remove(a.id); refresh(); };
         return (
           <div key={pid} className="prov-group">
             <div className="prov-group-lbl" style={{color:prov.color}}>
@@ -461,8 +461,8 @@ function AccountsPanel({ manager, status, refresh, routerScores, routerStrategy,
                 <span className="acc-usage">{((acc.tokensIn||0)+(acc.tokensOut||0)).toLocaleString()} tok · {fmtCost(acc.costUsd||0)}</span>
                 <span className="acc-status" style={{color:SC[acc.status]}}>{SL[acc.status]}</span>
                 <div className="acc-actions">
-                  {acc.status!=="active"&&<button className="btn-tiny" onClick={e=>{e.stopPropagation();manager.resetAccount(acc.id);refresh();}}><Ic.Ref/></button>}
-                  <button className="btn-tiny danger" onClick={e=>{e.stopPropagation();manager.remove(acc.id);refresh();}}><Ic.X/></button>
+                  {acc.status!=="active"&&<button className="btn-tiny" onClick={async e=>{e.stopPropagation();await manager.resetAccount(acc.id);refresh();}}><Ic.Ref/></button>}
+                  <button className="btn-tiny danger" onClick={async e=>{e.stopPropagation();await manager.remove(acc.id);refresh();}}><Ic.X/></button>
                 </div>
               </div>
             ))}
@@ -859,18 +859,20 @@ export default function App() {
   }));
 
   useEffect(()=>{
-    manager.loadKeys();
-    if(manager.getAll().length===0){
-      manager.add({provider:"ollama",  label:"Ollama Local",   model:"llama3.2",        apiKey:""});
-      manager.add({provider:"chatgpt", label:"GPT Account 1",  model:"gpt-4o-mini",     apiKey:""});
-      manager.add({provider:"chatgpt", label:"GPT Account 2",  model:"gpt-4o-mini",     apiKey:""});
-      manager.add({provider:"chatgpt", label:"GPT Account 3",  model:"gpt-4o-mini",     apiKey:""});
-      manager.add({provider:"chatgpt", label:"GPT Account 4",  model:"gpt-4o-mini",     apiKey:""});
-      manager.add({provider:"claude",  label:"Claude Pro 1",   model:"claude-haiku-4-5",apiKey:""});
-      manager.add({provider:"claude",  label:"Claude Pro 2",   model:"claude-haiku-4-5",apiKey:""});
-      manager.add({provider:"copilot", label:"GitHub Copilot", model:"gpt-4o",          apiKey:""});
-    }
-    setAccStatus(manager.getStatus());
+    (async () => {
+      await manager.init();
+      if (manager.getAll().length === 0) {
+        await manager.add({provider:"ollama",  label:"Ollama Local",   model:"llama3.2",        apiKey:""});
+        await manager.add({provider:"chatgpt", label:"GPT Account 1",  model:"gpt-4o-mini",     apiKey:""});
+        await manager.add({provider:"chatgpt", label:"GPT Account 2",  model:"gpt-4o-mini",     apiKey:""});
+        await manager.add({provider:"chatgpt", label:"GPT Account 3",  model:"gpt-4o-mini",     apiKey:""});
+        await manager.add({provider:"chatgpt", label:"GPT Account 4",  model:"gpt-4o-mini",     apiKey:""});
+        await manager.add({provider:"claude",  label:"Claude Pro 1",   model:"claude-haiku-4-5",apiKey:""});
+        await manager.add({provider:"claude",  label:"Claude Pro 2",   model:"claude-haiku-4-5",apiKey:""});
+        await manager.add({provider:"copilot", label:"GitHub Copilot", model:"gpt-4o",          apiKey:""});
+      }
+      setAccStatus(manager.getStatus());
+    })();
   }, [manager]);
 
   // Auto-detect providers on mount
@@ -1224,7 +1226,7 @@ export default function App() {
       case "files":    return <FileExplorer onOpenFile={handleOpenFile} activeFile={activeTab} onRootChange={setWorkspaceRoot}/>;
       case "search":   return <SearchPanel code={code}/>;
       case "git":      return <GitPanel workspaceRoot={workspaceRoot}/>;
-      case "ext":      return <ExtPanel workspaceRoot={workspaceRoot} activeFile={activeTab} onOpenSide={id=>{setActivity(id);setSideOpen(true);}} onOutput={line=>{openPanel("output");pushOutput(line);}}/>;
+      case "ext":      return <ExtPanel workspaceRoot={workspaceRoot} activeFile={activeTab} onOpenSide={id=>{setActivity(id);setSideOpen(true);}} onOutput={line=>{openPanel("output");pushOutput(line);}} manager={manager}/>;
       case "accounts": return <AccountsPanel manager={manager} status={accStatus} refresh={()=>setAccStatus(manager.getStatus())} routerScores={routerScores} routerStrategy={routerStrategy} onStrategy={s=>{setRT(s);manager.router.setStrategy(s);}}/>;
       case "chat":     return <ChatPanel manager={manager} status={accStatus} editorRef={editorRef} lang={lang} code={code} onProposeEdit={showInlineDiff}/>;
       default:         return null;
