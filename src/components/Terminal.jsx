@@ -344,6 +344,7 @@ export default function TerminalPanel({ onClose, embedded = false, height: contr
   const [activeId, setActiveId] = useState(tabs[0]?.id || null);
   const [profileId, setProfileId] = useState(SHELLS[0].id);
   const [promptMode, setPromptMode] = useState("modern");
+  const [sessionsCollapsed, setSessionsCollapsed] = useState(false);
   const [height, setHeight] = useState(220);
   const [actionSignal, setActionSignal] = useState({ id: 0, type: "" });
   const panelHeight = controlledHeight ?? height;
@@ -383,6 +384,10 @@ export default function TerminalPanel({ onClose, embedded = false, height: contr
   const splitTerminal = useCallback(() => {
     addTab(activeTab?.shell || selectedShell, "Split ");
   }, [activeTab, addTab, selectedShell]);
+
+  const toggleSessionsRail = useCallback(() => {
+    setSessionsCollapsed(v => !v);
+  }, []);
 
   const startDrag = useCallback((e) => {
     e.preventDefault();
@@ -425,6 +430,7 @@ export default function TerminalPanel({ onClose, embedded = false, height: contr
           <button className="term-icon-btn soft" title="Copy" disabled={!tabs.length} onClick={() => emitAction("copy")}>Copy</button>
           <button className="term-icon-btn soft" title="Paste" disabled={!tabs.length} onClick={() => emitAction("paste")}>Paste</button>
           <button className="term-icon-btn soft" title="Clear" disabled={!tabs.length} onClick={() => emitAction("clear")}>Clear</button>
+          <button className="term-icon-btn" title={sessionsCollapsed ? "Show Sessions" : "Hide Sessions"} onClick={toggleSessionsRail}>{sessionsCollapsed ? "<" : ">"}</button>
           <button className="term-icon-btn" title="New Terminal" onClick={()=>addTab()}>+</button>
           <button className="term-icon-btn" title="Split Terminal" disabled={!tabs.length} onClick={splitTerminal}>||</button>
           <button className="term-icon-btn" title="Kill Terminal" disabled={!tabs.length} onClick={killActive}>x</button>
@@ -432,7 +438,7 @@ export default function TerminalPanel({ onClose, embedded = false, height: contr
           {onClose && <button className="term-icon-btn" title="Close Panel" onClick={onClose}>v</button>}
         </div>
       </div>
-      <div className="term-workspace">
+      <div className={`term-workspace ${sessionsCollapsed ? "sessions-collapsed" : ""}`}>
         <div className="term-body">
           {tabs.length ? (
             tabs.map(t => <TermInstance key={t.id} termId={t.id} shell={t.shell} active={t.id===activeId} actionSignal={actionSignal} promptMode={promptMode}/>)
