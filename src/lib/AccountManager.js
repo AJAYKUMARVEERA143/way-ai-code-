@@ -89,10 +89,11 @@ export class SmartRouter {
 
 // ── AccountManager ────────────────────────────────────────────────────────────
 export class AccountManager {
-  constructor(onChange) {
+  constructor(onChange, onSwitch) {
     this.accounts = [];
     this.activeId = null;
     this.onChange = typeof onChange === "function" ? onChange : () => {};
+    this.onSwitch = typeof onSwitch === "function" ? onSwitch : null;
     this.router = new SmartRouter();
     this._ready = false;
   }
@@ -175,6 +176,22 @@ export class AccountManager {
   async getGitHubToken() {
     try {
       return await secureGet("github_token");
+    } catch {
+      return null;
+    }
+  }
+
+  setGitHubUser(user) {
+    try {
+      if (user) localStorage.setItem("wayai_github_user_v1", JSON.stringify(user));
+      else localStorage.removeItem("wayai_github_user_v1");
+    } catch {}
+  }
+
+  getGitHubUser() {
+    try {
+      const raw = localStorage.getItem("wayai_github_user_v1");
+      return raw ? JSON.parse(raw) : null;
     } catch {
       return null;
     }
@@ -310,6 +327,7 @@ export class AccountManager {
     const from=this._find(fromId);
     if(!next){this.onChange({...this._status(),toast:"⚠️ All accounts limited! Add more.",toastType:"warn"});return;}
     this.activeId=next.id;
+    this.onSwitch?.({ from, to: next, reason, at: Date.now() });
     this.onChange({...this._status(),toast:`↻ ${from?.label} → ${next.label} (${reason})`,toastType:"info"});
   }
 

@@ -20,7 +20,7 @@ const INJECTION_PATTERNS = [
   /(;|\|{1,2}|&&)\s*(curl|wget|nc|bash|sh|python|node)/i,
 ];
 
-const ALLOWED_STEP_TYPES = new Set(["read_file", "write_file", "search_files", "ai_call", "run_command", "search"]);
+const ALLOWED_STEP_TYPES = new Set(["read_file", "write_file", "search_files", "ai_call", "run_command", "search", "create_file", "delete_file"]);
 
 // ── Command whitelist ──────────────────────────────────────────────────────
 const ALLOWED_COMMANDS = {
@@ -38,21 +38,37 @@ const ALWAYS_BLOCKED = [
   /curl|wget|nc\b|ncat|socat|ssh|scp|sftp/i,
 ];
 
-const PLANNER_SYSTEM = `You are Way AI, an expert coding agent.
-Given a task description and project context, output a JSON plan.
-Output ONLY valid JSON. No markdown, no explanation.
+const PLANNER_SYSTEM = `You are Way AI, a senior software engineer coding agent.
+You plan tasks as a Planner → Executor → Verifier loop.
 
-Format:
+Rules:
+- Always read before writing. Never guess file contents.
+- Prefer minimal, surgical edits. Do not rewrite files unnecessarily.
+- For new features: search existing patterns first, then create/write.
+- For bugs: read the file, ai_call to analyze, write_file with fix.
+- Use create_file only for genuinely new files that don't exist yet.
+- Use delete_file only when explicitly asked; mark it for confirmation.
+- Workspace paths must be relative to the project root.
+- Max 12 steps. Output ONLY valid JSON.
+
+Step types:
+  read_file   - read an existing file (path required)
+  write_file  - overwrite/update a file (path required; content from prior ai_call)
+  create_file - create a new file (path required; content from prior ai_call)
+  delete_file - delete a file (path required; always shown as preview, requires confirmation)
+  search_files - search workspace for files matching a query
+  ai_call     - call AI to analyze/generate code (goal required)
+  run_command - run an allowed CLI command (command required)
+
+Output format:
 {
   "title": "short task title",
   "steps": [
     { "type": "read_file", "path": "src/App.jsx" },
-    { "type": "ai_call", "goal": "analyze the file" },
+    { "type": "ai_call", "goal": "analyze and produce the fix" },
     { "type": "write_file", "path": "src/App.jsx", "goal": "apply fix" }
   ]
-}
-
-Step types: read_file, write_file, search_files, ai_call, run_command`;
+}`;
 
 function sanitizeTaskInput(input) {
   if (typeof input !== "string") throw new Error("Task must be a string.");
@@ -319,6 +335,10 @@ export class AgentRunner {
         return this._readFileStep(step, memory);
       case "write_file":
         return this._writeFileStep(step, memory);
+      case "create_file":
+        return this._createFileStep(step, memory);
+      case "delete_file":
+        return this._deleteFileStep(step, memory);
       case "search_files":
       case "search":
         return this._searchFilesStep(step, context, memory);
@@ -328,6 +348,43 @@ export class AgentRunner {
       default:
         return this._aiCallStep(step, context, memory);
     }
+  }
+
+  async _createFileStep(step, memory) {
+    assertWithinWorkspace(step.path, this.workspaceRoot || memory.context?.projectRoot);
+    if (!step.path) throw new Error("create_file step missing path");
+    const content = step.content || extractFirstCodeBlock(memory.lastAiResponse) || "";
+    if (content.length > MAX_FILE_SIZE) throw new Error(`File too large for ${step.path}`);
+    if (!memory.context?.dryRun) {
+      await this.fsApi.writeFile(step.path, content);
+    }
+    memory.fileContents[step.path] = content;
+    return {
+      summary: `${memory.context?.dryRun ? "Would create" : "Created"} ${step.path}`,
+      tokens: roughTokenCountEstimation(content),
+      cost: 0,
+      preview: { kind: "create", path: step.path, simulated: !!memory.context?.dryRun, summary: `${memory.context?.dryRun ? "Would create" : "Created"}: ${step.path}` },
+    };
+  }
+
+  async _deleteFileStep(step, memory) {
+    assertWithinWorkspace(step.path, this.workspaceRoot || memory.context?.projectRoot);
+    if (!step.path) throw new Error("delete_file step missing path");
+    // Deletes always show as preview/confirmation required unless step.confirmed === true
+    const doDelete = !memory.context?.dryRun && step.confirmed === true;
+    if (!doDelete) {
+      return {
+        summary: `Delete ${step.path} — awaiting confirmation`,
+        tokens: 0, cost: 0,
+        preview: { kind: "delete", path: step.path, simulated: true, summary: `Pending confirmation: delete ${step.path}` },
+      };
+    }
+    if (this.fsApi.deleteEntry) await this.fsApi.deleteEntry(step.path);
+    return {
+      summary: `Deleted ${step.path}`,
+      tokens: 0, cost: 0,
+      preview: { kind: "delete", path: step.path, simulated: false, summary: `Deleted: ${step.path}` },
+    };
   }
 
   async _readFileStep(step, memory) {
@@ -547,8 +604,10 @@ export class AgentRunner {
   }
 
   _stepLabel(step) {
-    if (step.type === "read_file") return `Read ${step.path}`;
-    if (step.type === "write_file") return `Write ${step.path}`;
+    if (step.type === "read_file")   return `Read ${step.path}`;
+    if (step.type === "write_file")  return `Write ${step.path}`;
+    if (step.type === "create_file") return `Create ${step.path}`;
+    if (step.type === "delete_file") return `Delete ${step.path}`;
     if (step.type === "search_files" || step.type === "search") return `Search ${step.query}`;
     if (step.type === "run_command") return `Run ${step.command}`;
     return step.goal || "Analyze and act";

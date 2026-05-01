@@ -40,6 +40,7 @@ export const gitUnstage   = (root, path)               => invoke("git_unstage", 
 export const gitCommit    = (root, message)            => invoke("git_commit",   { root, message });
 export const gitPush      = (root)                     => invoke("git_push",     { root });
 export const gitPull      = (root)                     => invoke("git_pull",     { root });
+export const gitPushWithToken = (root, username, token) => invoke("git_push_with_token", { root, username, token });
 
 export async function openFolderDialog() {
   if (!IS_TAURI) return MOCK_ROOT;

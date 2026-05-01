@@ -1,0 +1,325 @@
+/* ======================================================
+   Way AI Code - ExtensionPreviewTab.css
+   Extension detail view in editor area - Way AI unique style
+   All classes: expt-* (no conflicts with existing CSS)
+====================================================== */
+
+.expt-root {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg0);
+}
+
+.expt-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  gap: 12px;
+}
+
+.expt-empty-icon { font-size: 36px; color: var(--accent); opacity: .4; }
+.expt-empty-text { font-size: 13px; color: var(--t3); }
+
+.expt-hero {
+  position: relative;
+  padding: 28px 28px 22px;
+  border-bottom: 1px solid var(--b1);
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+.expt-hero-bg {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    135deg,
+    rgba(0, 120, 212, 0.08) 0%,
+    rgba(0, 120, 212, 0.03) 40%,
+    transparent 70%
+  );
+  pointer-events: none;
+}
+
+.expt-hero::after {
+  content: "◈";
+  position: absolute;
+  right: 24px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 80px;
+  color: var(--accent);
+  opacity: 0.04;
+  pointer-events: none;
+  user-select: none;
+}
+
+.expt-hero-content {
+  position: relative;
+  display: flex;
+  gap: 20px;
+  align-items: flex-start;
+}
+
+.expt-hero-icon { flex-shrink: 0; }
+
+.expt-icon-fallback {
+  width: 72px;
+  height: 72px;
+  border-radius: 12px;
+  background: var(--bg2);
+  border: 1px solid var(--b2);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--accent2);
+}
+
+.expt-hero-info { flex: 1; min-width: 0; }
+
+.expt-hero-name {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--t1);
+  margin-bottom: 6px;
+  line-height: 1.2;
+}
+
+.expt-hero-pub-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 12px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+
+.expt-hero-pub { color: var(--accent2); font-weight: 500; display: flex; align-items: center; gap: 4px; }
+.expt-verified-icon { color: #22c55e; font-size: 10px; }
+.expt-hero-stat { color: var(--t3); }
+.expt-stars { color: #d29922; }
+.expt-rating-n { color: var(--t3); margin-left: 3px; }
+
+.expt-hero-desc {
+  font-size: 13px;
+  color: var(--t2);
+  line-height: 1.5;
+  margin-bottom: 14px;
+}
+
+.expt-hero-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+.expt-install-btn {
+  position: relative;
+  padding: 7px 20px;
+  background: var(--accent);
+  border: none;
+  border-radius: 4px;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  overflow: hidden;
+  transition: background .2s, transform .1s;
+  font-family: var(--ui);
+}
+
+.expt-install-btn:hover:not(:disabled) { background: var(--accent2); transform: translateY(-1px); }
+.expt-install-btn:active:not(:disabled) { transform: translateY(0); }
+.expt-install-btn:disabled { opacity: .7; cursor: wait; }
+
+.expt-install-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 4px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.expt-install-btn.installing .expt-install-ring {
+  animation: expt-ring-pulse 0.9s ease-out forwards;
+  background: rgba(255,255,255,.25);
+}
+
+@keyframes expt-ring-pulse {
+  0%   { opacity: 1; transform: scale(1); }
+  100% { opacity: 0; transform: scale(1.6); }
+}
+
+.expt-install-label { position: relative; z-index: 1; }
+
+.expt-installed-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+
+.expt-installed-badge {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 14px;
+  background: rgba(34, 197, 94, 0.12);
+  border: 1px solid rgba(34, 197, 94, 0.3);
+  border-radius: 4px;
+  color: #22c55e;
+  font-size: 13px;
+  font-weight: 600;
+  animation: expt-badge-in .3s ease;
+}
+
+@keyframes expt-badge-in {
+  from { opacity: 0; transform: scale(.9); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+.expt-installed-check { font-size: 14px; }
+
+.expt-disable-btn,
+.expt-uninstall-btn {
+  padding: 6px 12px;
+  background: transparent;
+  border: 1px solid var(--b2);
+  border-radius: 4px;
+  color: var(--t1);
+  font-size: 12px;
+  cursor: pointer;
+  transition: background .1s;
+  font-family: var(--ui);
+}
+
+.expt-disable-btn:hover,
+.expt-uninstall-btn:hover { background: var(--bg3); }
+
+.expt-gear-btn {
+  padding: 6px 10px;
+  background: transparent;
+  border: none;
+  color: var(--t2);
+  font-size: 15px;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: background .1s;
+}
+
+.expt-gear-btn:hover { background: var(--bg3); color: var(--t1); }
+
+.expt-tabbar {
+  display: flex;
+  border-bottom: 1px solid var(--b1);
+  flex-shrink: 0;
+  background: var(--bg1);
+}
+
+.expt-tab {
+  padding: 9px 16px;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--t2);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all .12s;
+  font-family: var(--ui);
+}
+
+.expt-tab:hover { color: var(--t1); }
+.expt-tab-on { color: var(--t1); border-bottom-color: var(--accent); }
+
+.expt-body { flex: 1; overflow-y: auto; }
+.expt-body::-webkit-scrollbar { width: 6px; }
+.expt-body::-webkit-scrollbar-thumb { background: var(--bg3); border-radius: 3px; }
+
+.expt-details { display: flex; height: 100%; }
+
+.expt-readme-wrap {
+  flex: 1;
+  padding: 20px 24px;
+  overflow-y: auto;
+  border-right: 1px solid var(--b1);
+}
+
+.expt-readme-wrap::-webkit-scrollbar { width: 5px; }
+.expt-readme-wrap::-webkit-scrollbar-thumb { background: var(--bg3); border-radius: 2px; }
+
+.expt-readme {
+  font-size: 13px;
+  color: var(--t1);
+  line-height: 1.7;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: var(--ui);
+  margin: 0;
+}
+
+.expt-loading { font-size: 13px; color: var(--t3); padding: 20px 0; }
+
+.expt-info-sidebar {
+  width: 220px;
+  min-width: 200px;
+  padding: 20px 16px;
+  flex-shrink: 0;
+  overflow-y: auto;
+}
+
+.expt-info-section { margin-bottom: 20px; }
+
+.expt-info-title {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .06em;
+  color: var(--t2);
+  margin-bottom: 8px;
+  text-transform: uppercase;
+}
+
+.expt-info-tags { display: flex; flex-wrap: wrap; gap: 4px; }
+
+.expt-info-tag {
+  padding: 3px 9px;
+  background: var(--bg2);
+  border: 1px solid var(--b1);
+  border-radius: 10px;
+  font-size: 11px;
+  color: var(--t2);
+}
+
+.expt-info-link {
+  display: block;
+  font-size: 12px;
+  color: var(--accent2);
+  padding: 3px 0;
+  text-decoration: none;
+  cursor: pointer;
+  transition: color .1s;
+}
+
+.expt-info-link:hover { color: var(--t1); }
+
+.expt-info-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 3px 0;
+  font-size: 12px;
+}
+
+.expt-info-key { color: var(--t3); }
+.expt-info-val { color: var(--t1); font-weight: 500; }
+
+.expt-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  min-height: 200px;
+  gap: 8px;
+  color: var(--t3);
+  font-size: 13px;
+}
+
+.expt-placeholder-icon { font-size: 28px; opacity: .4; }
+.expt-placeholder-sub { font-size: 12px; color: var(--t3); }

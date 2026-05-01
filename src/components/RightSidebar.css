@@ -1,0 +1,394 @@
+/* ── Right Sidebar ────────────────────────────────────────────────────────── */
+.rsb-wrap {
+  display: flex;
+  flex-direction: row;
+  background: var(--bg1);
+  border-left: 1px solid rgba(0,0,0,.32);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+/* ── Right Activity Bar ───────────────────────────────────────────────────── */
+.rsb-act {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  width: 44px;
+  min-width: 44px;
+  background: var(--bg0);
+  border-right: 1px solid var(--b1);
+  padding: 6px 0;
+  overflow: hidden;
+}
+
+.rsb-act-spacer { flex: 1; }
+
+.rsb-act-btn {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--t3);
+  cursor: pointer;
+  transition: color 0.12s, background 0.12s;
+}
+.rsb-act-btn:hover { color: var(--t1); background: rgba(255,255,255,.07); }
+.rsb-act-on {
+  color: var(--t1) !important;
+  background: rgba(17,119,187,.18) !important;
+  border-left: 2px solid var(--accent2);
+}
+.rsb-act-close { color: var(--t3); }
+.rsb-act-close:hover { color: var(--red); }
+
+/* Tooltip on hover */
+.rsb-act-tooltip {
+  pointer-events: none;
+  position: absolute;
+  right: calc(100% + 8px);
+  top: 50%;
+  transform: translateY(-50%);
+  white-space: nowrap;
+  background: var(--bg3);
+  border: 1px solid var(--b2);
+  border-radius: 4px;
+  color: var(--t1);
+  font-size: 11px;
+  padding: 4px 8px;
+  opacity: 0;
+  transition: opacity 0.15s;
+  z-index: 200;
+}
+.rsb-act-btn:hover .rsb-act-tooltip { opacity: 1; }
+
+/* ── Panel body ───────────────────────────────────────────────────────────── */
+.rsb-body {
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.rsb-panel {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* ── Panel header ─────────────────────────────────────────────────────────── */
+.rsb-hd {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 12px 7px;
+  border-bottom: 1px solid var(--b1);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--t2);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  flex-shrink: 0;
+  background: linear-gradient(180deg, rgba(255,255,255,.025) 0%, transparent 100%);
+}
+.rsb-hd svg { color: var(--accent2); flex-shrink: 0; }
+
+.rsb-badge {
+  margin-left: auto;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: rgba(17,119,187,.22);
+  border: 1px solid rgba(17,119,187,.32);
+  color: #7ecfff;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+/* ── Chat + WayAI panels (fill remaining height) ─────────────────────────── */
+.rsb-panel > .wayai-tab,
+.rsb-panel > [class*="chat"] {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* ── Installed Extensions ─────────────────────────────────────────────────── */
+.rsb-installed-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.rsb-ext-card {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 10px;
+  background: rgba(255,255,255,.025);
+  border: 1px solid var(--b1);
+  border-radius: 6px;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.12s, border-color 0.12s;
+  width: 100%;
+}
+.rsb-ext-card:hover {
+  background: rgba(17,119,187,.1);
+  border-color: rgba(17,119,187,.35);
+}
+
+.rsb-ext-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  overflow: hidden;
+  color: #fff;
+}
+.rsb-ext-icon img { width: 28px; height: 28px; object-fit: contain; }
+
+.rsb-ext-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.rsb-ext-name {
+  font-size: 12px;
+  color: var(--t1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.rsb-ext-ns {
+  font-size: 10px;
+  color: var(--t3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.rsb-ext-open {
+  font-size: 13px;
+  color: var(--t3);
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+.rsb-ext-card:hover .rsb-ext-open { opacity: 1; color: var(--accent2); }
+
+/* ── Accounts panel ───────────────────────────────────────────────────────── */
+.rsb-accounts-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.rsb-acc-card {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--b1);
+  border-radius: 6px;
+  background: rgba(255,255,255,.02);
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s;
+  width: 100%;
+  text-align: left;
+}
+.rsb-acc-card:hover {
+  background: rgba(255,255,255,.045);
+  border-color: rgba(255,255,255,.12);
+}
+.rsb-acc-active {
+  background: rgba(17,119,187,.12) !important;
+  border-color: rgba(17,119,187,.38) !important;
+}
+
+.rsb-acc-dot {
+  font-size: 14px;
+  flex-shrink: 0;
+  width: 16px;
+  text-align: center;
+}
+
+.rsb-acc-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.rsb-acc-label {
+  font-size: 12px;
+  color: var(--t1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.rsb-acc-model {
+  font-size: 10px;
+  color: var(--t3);
+  font-family: var(--mono);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.rsb-acc-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  flex-shrink: 0;
+}
+.rsb-acc-status {
+  font-size: 9px;
+  text-transform: uppercase;
+  padding: 2px 5px;
+  border-radius: 999px;
+  border: 1px solid var(--b1);
+  color: var(--t3);
+}
+.rsb-acc-status.active {
+  color: var(--green);
+  border-color: rgba(78,201,176,.3);
+  background: rgba(78,201,176,.1);
+}
+.rsb-acc-status.limited { color: var(--yellow); border-color: rgba(245,158,11,.3); background: rgba(245,158,11,.1); }
+.rsb-acc-status.error   { color: var(--red);    border-color: rgba(244,71,71,.3);  background: rgba(244,71,71,.1); }
+
+.rsb-acc-check {
+  color: var(--accent2);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.rsb-manage-btn {
+  margin: 8px;
+  padding: 7px 12px;
+  background: rgba(17,119,187,.12);
+  border: 1px solid rgba(17,119,187,.28);
+  border-radius: 5px;
+  color: var(--accent2);
+  font-size: 11px;
+  cursor: pointer;
+  transition: background 0.12s;
+  text-align: center;
+}
+.rsb-manage-btn:hover { background: rgba(17,119,187,.22); }
+
+/* ── Outline + blocks ─────────────────────────────────────────────────────── */
+.rsb-block {
+  margin: 8px 8px 0;
+  border: 1px solid var(--b1);
+  border-radius: 6px;
+  overflow: hidden;
+  background: rgba(255,255,255,.018);
+}
+.rsb-block-hd {
+  padding: 6px 10px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--t3);
+  background: rgba(255,255,255,.025);
+  border-bottom: 1px solid var(--b1);
+}
+.rsb-list {
+  display: flex;
+  flex-direction: column;
+}
+.rsb-list-item {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 10px;
+  background: transparent;
+  border: none;
+  border-top: 1px solid rgba(255,255,255,.03);
+  color: var(--t2);
+  font-size: 11px;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.1s;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.rsb-list-item:hover { background: rgba(255,255,255,.04); color: var(--t1); }
+.rsb-list-item.on { background: rgba(17,119,187,.12); color: var(--t1); }
+.rsb-list-dot { font-size: 7px; flex-shrink: 0; }
+.rsb-empty-inline { padding: 8px 10px; font-size: 11px; color: var(--t3); }
+
+.rsb-sym-kind { width: 28px; font-size: 9px; color: var(--accent2); font-family: var(--mono); flex-shrink: 0; }
+.rsb-sym-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.rsb-sym-line { flex-shrink: 0; font-family: var(--mono); font-size: 10px; color: var(--t3); }
+
+.rsb-actions {
+  display: flex;
+  gap: 5px;
+  padding: 8px 10px;
+  flex-wrap: wrap;
+}
+.rsb-action-btn {
+  padding: 4px 10px;
+  border: 1px solid var(--b1);
+  border-radius: 4px;
+  background: var(--bg2);
+  color: var(--t2);
+  font-size: 11px;
+  cursor: pointer;
+  transition: border-color 0.1s, color 0.1s;
+}
+.rsb-action-btn:hover { border-color: var(--accent2); color: var(--t1); }
+
+.rsb-file-meta {
+  margin: 8px;
+  border: 1px solid var(--b1);
+  border-radius: 6px;
+  overflow: hidden;
+  background: rgba(255,255,255,.018);
+}
+.rsb-meta-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 5px 10px;
+  border-top: 1px solid rgba(255,255,255,.03);
+  font-size: 11px;
+}
+.rsb-meta-row span:first-child { color: var(--t3); }
+.rsb-meta-row span:last-child  { color: var(--t1); font-family: var(--mono); font-size: 10px; }
+.rsb-meta-row:first-child { border-top: none; }
+
+/* ── Empty state ──────────────────────────────────────────────────────────── */
+.rsb-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 32px 16px;
+  color: var(--t3);
+  font-size: 12px;
+  text-align: center;
+}
+.rsb-empty svg { opacity: 0.35; }

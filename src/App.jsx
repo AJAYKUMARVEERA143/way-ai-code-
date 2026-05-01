@@ -17,7 +17,14 @@ import {
   writeFile, langFromPath, langColor, pathExt, LANG_COLOR, MOCK_ROOT,
   detectTools, packageScripts, npmInstall, npmRunScript, pythonRunFile, gitClone,
   gitStatus, gitLog, gitStage, gitUnstage, gitCommit, gitPush, gitPull,
+  gitPushWithToken,
 } from "./lib/fs.js";
+import { useDockPanel, FloatingPanel, DockPlaceholder, PanelHeader } from "./components/DockSystem.jsx";
+import "./components/DockSystem.css";
+import ExtensionsPanel from "./components/Extensions/ExtensionsPanel.jsx";
+import ExtensionPreviewTab from "./components/Extensions/ExtensionPreviewTab.jsx";
+import ErrorBoundary from "./components/ErrorBoundary.jsx";
+import "./components/RightSidebar.css";
 
 // ── Icons ─────────────────────────────────────────────────────────────────────
 const Ic = {
@@ -27,16 +34,27 @@ const Ic = {
   Ext:     ()=><svg width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.6" viewBox="0 0 24 24"><rect x="2" y="2" width="9" height="9" rx="1"/><rect x="13" y="2" width="9" height="9" rx="1"/><rect x="2" y="13" width="9" height="9" rx="1"/><rect x="13" y="13" width="9" height="9" rx="1"/></svg>,
   Chat:    ()=><svg width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.6" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>,
   Accounts:()=><svg width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.6" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>,
+  WayAI:   ()=>(
+    <svg width="20" height="20" viewBox="0 0 512 512" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+      <path d="M256 74L425 272H355L256 156L157 272H87L256 74Z"/>
+      <path d="M87 272H152L256 378L360 272H425L256 446L87 272Z"/>
+      <path d="M256 118L238 318L178 272L256 118Z" opacity=".55"/>
+      <path d="M256 118L334 272L274 318L256 118Z" opacity=".55"/>
+    </svg>
+  ),
   Term:    ()=><svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>,
   X:       ()=><svg width="11" height="11" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>,
   Ref:     ()=><svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>,
   Plus:    ()=><svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>,
+  Popout:  ()=><svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24"><path d="M15 3h6v6"/><path d="M10 14L21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg>,
+  Attach:  ()=><svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18"/></svg>,
+  Settings:()=><svg width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.6" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.01a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h.01a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.01a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>,
 };
 
 const LANG_DOT = LANG_COLOR;
 
 // ── Git Panel ─────────────────────────────────────────────────────────────────
-function GitPanel({ workspaceRoot }) {
+function GitPanel({ workspaceRoot, manager }) {
   const root = workspaceRoot || MOCK_ROOT;
   const [msg, setMsg]       = useState("");
   const [status, setStatus] = useState(null);
@@ -84,6 +102,18 @@ function GitPanel({ workspaceRoot }) {
     setMsg("");
   });
 
+  const doPush = async () => {
+    run("Pushed", async () => {
+      const token = await manager?.getGitHubToken?.();
+      const ghUser = manager?.getGitHubUser?.();
+      if (token && ghUser?.login) {
+        await gitPushWithToken(root, ghUser.login, token);
+      } else {
+        await gitPush(root);
+      }
+    });
+  };
+
   const fileRow = (file, staged = false) => (
     <div key={`${staged?"s":"u"}:${file.path}`} className="git-file-row" title={file.path}>
       <span className={`git-badge ${staged?"staged":"mod"}`}>{file.status}</span>
@@ -114,7 +144,7 @@ function GitPanel({ workspaceRoot }) {
           onKeyDown={e=>{ if(e.ctrlKey&&e.key==="Enter"&&msg.trim()&&!busy) doCommit(); }}/>
         <div className="git-btns">
           <button className="btn-git-p" disabled={!msg.trim()||busy} onClick={doCommit}>✓ Commit</button>
-          <button className="btn-git-s" disabled={busy} onClick={()=>run("Pushed", () => gitPush(root))}>↑ Push</button>
+          <button className="btn-git-s" disabled={busy} onClick={doPush}>↑ Push</button>
           <button className="btn-git-s" disabled={busy} onClick={()=>run("Pulled", () => gitPull(root))}>↓ Pull</button>
           <button className="btn-git-s" disabled={busy} onClick={refresh}>⟳ Refresh</button>
         </div>
@@ -142,11 +172,11 @@ function GitPanel({ workspaceRoot }) {
 const EXT_STORE_KEY = "wayai_extensions_v1";
 const EXT_CATS = ["All","Languages","Formatters","Linters","Themes","AI","Tools"];
 const EXTS = [
-  {id:"python", name:"Python", desc:"Python syntax, snippets, run tasks, and interpreter hints", icon:"Py", category:"Languages", version:"1.4.0", author:"Way", installed:true, enabled:true, tags:["python","django","flask"]},
+  {id:"python", name:"Python", desc:"Python syntax, snippets, run tasks, and interpreter hints", icon:"Py", category:"Languages", version:"1.4.0", latestVersion:"1.5.0", author:"Way", installed:true, enabled:true, tags:["python","django","flask"]},
   {id:"node", name:"Node.js", desc:"Package scripts, npm task discovery, and JS runtime helpers", icon:"JS", category:"Languages", version:"1.2.1", author:"Way", installed:true, enabled:true, tags:["node","npm","javascript"]},
   {id:"rust", name:"Rust Analyzer", desc:"Rust syntax, cargo tasks, and diagnostics integration", icon:"Rs", category:"Languages", version:"0.9.3", author:"Way", installed:false, enabled:false, tags:["rust","cargo","tauri"]},
-  {id:"prettier", name:"Prettier", desc:"Format JavaScript, TypeScript, JSON, CSS, and Markdown", icon:"Pr", category:"Formatters", version:"3.2.0", author:"Prettier", installed:true, enabled:true, tags:["format","javascript","css"]},
-  {id:"eslint", name:"ESLint", desc:"JavaScript and TypeScript lint rules with quick fixes", icon:"Es", category:"Linters", version:"9.0.0", author:"OpenJS", installed:true, enabled:true, tags:["lint","javascript","typescript"]},
+  {id:"prettier", name:"Prettier", desc:"Format JavaScript, TypeScript, JSON, CSS, and Markdown", icon:"Pr", category:"Formatters", version:"3.2.0", latestVersion:"3.3.0", author:"Prettier", installed:true, enabled:true, tags:["format","javascript","css"]},
+  {id:"eslint", name:"ESLint", desc:"JavaScript and TypeScript lint rules with quick fixes", icon:"Es", category:"Linters", version:"9.0.0", latestVersion:"9.1.0", author:"OpenJS", installed:true, enabled:true, tags:["lint","javascript","typescript"]},
   {id:"way-ai", name:"Way AI Tools", desc:"Inline edit, code suggestions, explain, tests, and refactor actions", icon:"AI", category:"AI", version:"1.0.0", author:"Way", installed:true, enabled:true, tags:["ai","autocomplete","diff"]},
   {id:"gpt-chat", name:"GPT Chat", desc:"OpenAI account routing, chat, inline edits, and completion prompts", icon:"GPT", category:"AI", version:"1.0.0", author:"Way", installed:true, enabled:true, tags:["openai","gpt","chatgpt"]},
   {id:"claude-chat", name:"Claude Chat", desc:"Anthropic Claude account routing, chat, and code edits", icon:"Cl", category:"AI", version:"1.0.0", author:"Way", installed:true, enabled:true, tags:["anthropic","claude"]},
@@ -179,9 +209,14 @@ function formatToolOutput(out) {
   return parts.join("\n").trim() || `Exit code ${out.code}`;
 }
 
-function ExtPanel({ workspaceRoot, activeFile, onOpenSide, onOutput, manager }) {
+function ExtPanel({ workspaceRoot, activeFile, onOpenSide, onOutput, manager, onDetach, onOpenExtension }) {
+  return <ExtensionsPanel onOpenExtension={onOpenExtension} />;
+}
+function _ExtPanelOld({ workspaceRoot, activeFile, onOpenSide, onOutput, manager, onDetach }) {
   const [q, setQ] = useState("");
   const [cat, setCat] = useState("All");
+  const [tab, setTab] = useState("extensions");
+  const [selectedId, setSelectedId] = useState(null);
   const [state, setState] = useState(loadExtState);
   const [tools, setTools] = useState([]);
   const [scripts, setScripts] = useState([]);
@@ -190,7 +225,7 @@ function ExtPanel({ workspaceRoot, activeFile, onOpenSide, onOutput, manager }) 
   const [error, setError] = useState("");
   const [githubToken, setGithubToken] = useState("");
   useEffect(() => {
-    manager.getGitHubToken()
+    manager.getGitHubToken?.()
       .then(k => { if (k) setGithubToken(k); })
       .catch(() => {});
   }, [manager]);
@@ -217,20 +252,22 @@ function ExtPanel({ workspaceRoot, activeFile, onOpenSide, onOutput, manager }) 
   useEffect(()=>{ refreshTools(); }, [refreshTools]);
 
   const merged = EXTS.map(ext => ({ ...ext, ...(state[ext.id] || {}) }));
+  const hasUpdate = (e) => e.latestVersion && e.latestVersion !== e.version && e.installed;
+  const updatable = merged.filter(hasUpdate);
+
   const filtered = merged.filter(e => {
     const text = `${e.name} ${e.desc} ${e.category} ${(e.tags||[]).join(" ")}`.toLowerCase();
     return (cat === "All" || e.category === cat) && (!q.trim() || text.includes(q.toLowerCase()));
   });
-  const installed = merged.filter(e=>e.installed);
+  const filteredInstalled = filtered.filter(e => e.installed);
+  const filteredAvailable = filtered.filter(e => !e.installed);
 
   const patchExt = (id, patch) => setState(prev => ({...prev, [id]: {...(prev[id] || {}), ...patch}}));
   const toolById = Object.fromEntries((tools || []).map(t => [t.id, t]));
   const hasTool = id => !!toolById[id]?.installed;
 
   const runAction = async (label, fn) => {
-    setBusy(label);
-    setError("");
-    setNotice("");
+    setBusy(label); setError(""); setNotice("");
     try {
       const out = await fn();
       const text = formatToolOutput(out);
@@ -240,164 +277,347 @@ function ExtPanel({ workspaceRoot, activeFile, onOpenSide, onOutput, manager }) 
       const msg = String(e?.message || e);
       setError(msg);
       onOutput?.(`${label} failed\n${msg}`);
-    } finally {
-      setBusy("");
-    }
+    } finally { setBusy(""); }
   };
 
   const saveGithubToken = async () => {
-    try {
-      await manager.setGitHubToken(githubToken.trim());
-      setNotice("GitHub token saved");
-      setTimeout(()=>setNotice(""), 1800);
-    } catch (e) {
-      setError(String(e?.message || e));
-    }
+    try { await manager.setGitHubToken(githubToken.trim()); setNotice("GitHub token saved"); setTimeout(()=>setNotice(""),1800); }
+    catch (e) { setError(String(e?.message || e)); }
   };
 
   const loadGithubRepos = async () => {
-    if (!githubToken.trim()) {
-      setError("GitHub token is required to list private/user repositories.");
-      return;
-    }
-    setBusy("GitHub repositories");
-    setError("");
+    if (!githubToken.trim()) { setError("GitHub token required"); return; }
+    setBusy("GitHub repositories"); setError("");
     try {
       const res = await fetch("https://api.github.com/user/repos?per_page=50&sort=updated", {
-        headers: {
-          "Accept": "application/vnd.github+json",
-          "Authorization": `Bearer ${githubToken.trim()}`,
-        },
+        headers: { "Accept": "application/vnd.github+json", "Authorization": `Bearer ${githubToken.trim()}` },
       });
       if (!res.ok) throw new Error(`GitHub HTTP ${res.status}`);
       const repos = await res.json();
-      setGithubRepos((repos || []).map(r => ({
-        id: r.id,
-        name: r.full_name,
-        cloneUrl: r.clone_url,
-        private: r.private,
-        updatedAt: r.updated_at,
-      })));
+      setGithubRepos((repos||[]).map(r => ({ id:r.id, name:r.full_name, cloneUrl:r.clone_url, private:r.private, updatedAt:r.updated_at })));
       setNotice(`Loaded ${repos.length} repositories`);
-    } catch(e) {
-      setError(String(e?.message || e));
-    } finally {
-      setBusy("");
-    }
+    } catch(e) { setError(String(e?.message || e)); }
+    finally { setBusy(""); }
   };
 
-  const runScript = (name) => {
-    runAction(`npm run ${name}`, () => npmRunScript(workspaceRoot || MOCK_ROOT, name));
-  };
-
+  const runScript = (name) => runAction(`npm run ${name}`, () => npmRunScript(workspaceRoot || MOCK_ROOT, name));
   const runPython = () => {
-    if (!activeFile || !activeFile.toLowerCase().endsWith(".py")) {
-      setError("Open a Python file before running Python.");
-      return;
-    }
+    if (!activeFile?.toLowerCase().endsWith(".py")) { setError("Open a Python file first"); return; }
     runAction(`python ${activeFile}`, () => pythonRunFile(workspaceRoot || MOCK_ROOT, activeFile));
   };
 
+  const CAT_COLOR = { Languages:"#3b82f6", Formatters:"#8b5cf6", Linters:"#f59e0b", Themes:"#ec4899", AI:"#10b981", Tools:"#6b7280" };
+  const selectedExt = selectedId ? merged.find(e => e.id === selectedId) : null;
+
+  const ExtCard = ({ e }) => {
+    const color = CAT_COLOR[e.category] || "#6b7280";
+    const isSelected = selectedId === e.id;
+    const showUpdate = hasUpdate(e);
+    return (
+      <div className={`ext2-card ${isSelected?"selected":""}`} onClick={() => setSelectedId(id => id === e.id ? null : e.id)}>
+        <div className="ext2-icon" style={{ background: color + "22", color }}>
+          {(e.icon||e.name.slice(0,2)).toUpperCase()}
+        </div>
+        <div className="ext2-info">
+          <div className="ext2-name-row">
+            <span className="ext2-name">{e.name}</span>
+            <span className="ext2-version">v{e.version}</span>
+            {showUpdate && <span className="ext2-update-badge">↑ {e.latestVersion}</span>}
+          </div>
+          <div className="ext2-desc">{e.desc}</div>
+          <div className="ext2-meta">{e.category} · {e.author}</div>
+        </div>
+        <div className="ext2-actions">
+          {e.installed ? (
+            <>
+              <button
+                className={`ext2-btn ${e.enabled?"enabled":"disabled"}`}
+                onClick={ev => { ev.stopPropagation(); patchExt(e.id, { enabled: !e.enabled }); }}
+              >{e.enabled?"Enabled":"Disabled"}</button>
+              {showUpdate && (
+                <button className="ext2-btn update"
+                  onClick={ev => { ev.stopPropagation(); patchExt(e.id, { version: e.latestVersion }); setNotice(`Updated ${e.name}`); }}
+                >Update</button>
+              )}
+              <button className="ext2-btn uninstall"
+                onClick={ev => { ev.stopPropagation(); patchExt(e.id, { installed:false, enabled:false }); setSelectedId(null); }}
+              >Uninstall</button>
+            </>
+          ) : (
+            <button className="ext2-btn install"
+              onClick={ev => { ev.stopPropagation(); patchExt(e.id, { installed:true, enabled:true }); }}
+            >Install</button>
+          )}
+        </div>
+      </div>
+    );
+  };
+
   return (
-    <div className="panel-scroll">
-      <div className="tool-section">
-        <div className="tool-hd">
-          <span>RUNTIME TOOLS</span>
-          <button className="btn-tiny" title="Refresh tools" onClick={refreshTools}><Ic.Ref/></button>
-        </div>
-        {tools.map(t=>(
-          <div key={t.id} className={`tool-row ${t.installed ? "ok" : "missing"}`}>
-            <span className="tool-dot"/>
-            <div className="tool-info">
-              <div className="tool-name">{t.label}</div>
-              <div className="tool-meta">{t.installed ? `${t.version || "installed"} · ${t.path}` : t.install_hint}</div>
-            </div>
-          </div>
-        ))}
-        {!tools.length && <div className="tool-empty">Runtime scan pending</div>}
+    <div className="ext2-wrap">
+      {/* Top tab switcher */}
+      <div className="ext2-search-bar" style={{gap:6}}>
+        <button className={`ext2-cat ${tab==="extensions"?"on":""}`} style={{borderRadius:4}} onClick={() => setTab("extensions")}>Extensions</button>
+        <button className={`ext2-cat ${tab==="tools"?"on":""}`} style={{borderRadius:4}} onClick={() => setTab("tools")}>Tools</button>
+        <div style={{flex:1}}/>
+        {onDetach && (
+          <button className="dp-panel-btn" title="Detach to floating window" onClick={onDetach} style={{flexShrink:0}}>
+            <Ic.Popout/>
+          </button>
+        )}
       </div>
 
-      <div className="tool-section">
-        <div className="tool-hd">
-          <span>PROJECT TASKS</span>
-          <span className="tool-root" title={workspaceRoot}>{workspaceRoot || "no workspace"}</span>
-        </div>
-        <div className="tool-actions">
-          <button className="btn-ext" disabled={!hasTool("npm") || !!busy} onClick={()=>runAction("npm install", () => npmInstall(workspaceRoot || MOCK_ROOT))}>npm install</button>
-          <button className="btn-ext" disabled={!hasTool("python") || !!busy} onClick={runPython}>Run Python</button>
-        </div>
-        {scripts.length ? scripts.map(s=>(
-          <div key={s.name} className="script-row">
-            <div className="script-main">
-              <span className="script-name">{s.name}</span>
-              <span className="script-cmd">{s.command}</span>
-            </div>
-            <button className="btn-ext" disabled={!hasTool("npm") || !!busy} onClick={()=>runScript(s.name)}>Run</button>
+      {tab === "extensions" && (
+        <>
+          <div className="ext2-search-bar" style={{paddingTop:4,paddingBottom:4}}>
+            <input className="ext2-search-inp" placeholder="Search extensions…" value={q} onChange={e => setQ(e.target.value)}/>
           </div>
-        )) : <div className="tool-empty">No package.json scripts found</div>}
-      </div>
-
-      <div className="tool-section">
-        <div className="tool-hd"><span>GITHUB</span></div>
-        <input className="way-input" type="password" placeholder="GitHub token (repo access)" value={githubToken} onChange={e=>setGithubToken(e.target.value)}/>
-        <input className="way-input" placeholder="Clone target folder" value={cloneTarget} onChange={e=>setCloneTarget(e.target.value)}/>
-        <div className="tool-actions">
-          <button className="btn-ext" onClick={saveGithubToken}>Save Token</button>
-          <button className="btn-ext" disabled={!hasTool("git") || !!busy} onClick={loadGithubRepos}>Load Repos</button>
-          <button className="btn-ext ghost" onClick={()=>onOpenSide?.("git")}>Source Control</button>
-        </div>
-        {githubRepos.slice(0, 12).map(repo=>(
-          <div key={repo.id} className="repo-row">
-            <div className="repo-main">
-              <span className="repo-name">{repo.name}</span>
-              <span className="repo-meta">{repo.private ? "private" : "public"} · {repo.updatedAt?.slice(0,10)}</span>
-            </div>
-            <button className="btn-ext" disabled={!hasTool("git") || !!busy} onClick={()=>runAction(`Clone ${repo.name}`, () => gitClone(cloneTarget || workspaceRoot || MOCK_ROOT, repo.cloneUrl))}>Clone</button>
+          <div className="ext2-cats">
+            {EXT_CATS.map(c => <button key={c} className={`ext2-cat ${cat===c?"on":""}`} onClick={() => setCat(c)}>{c}</button>)}
           </div>
-        ))}
-      </div>
-
-      <div className="ext-store-head">
-        <input className="ext-search" placeholder="Search extensions…" value={q} onChange={e=>setQ(e.target.value)}/>
-        <div className="ext-stats">{installed.length}/{EXTS.length} installed</div>
-      </div>
-      <div className="ext-cats">
-        {EXT_CATS.map(c=><button key={c} className={`ext-cat ${cat===c?"on":""}`} onClick={()=>setCat(c)}>{c}</button>)}
-      </div>
-      {filtered.map(e=>(
-        <div key={e.id} className={`ext-row ${e.installed?"installed":""}`}>
-          <span className="ext-icon">{e.icon}</span>
-          <div className="ext-info">
-            <div className="ext-name-row">
-              <span className="ext-name">{e.name}</span>
-              <span className="ext-version">v{e.version}</span>
-            </div>
-            <div className="ext-desc">{e.desc}</div>
-            <div className="ext-meta">{e.category} · {e.author}</div>
-          </div>
-          <div className="ext-actions">
-            {e.installed ? (
+          <div className="ext2-scroll">
+            {/* Updates Available */}
+            {updatable.filter(e => cat==="All" || e.category===cat).length > 0 && (
               <>
-                <button className={`btn-ext ${e.enabled?"on":""}`} onClick={()=>patchExt(e.id,{enabled:!e.enabled})}>{e.enabled?"Enabled":"Disabled"}</button>
-                <button className="btn-ext ghost" onClick={()=>patchExt(e.id,{installed:false,enabled:false})}>Uninstall</button>
+                <div className="ext2-section-hd">
+                  <span className="ext2-section-title" style={{color:"#f59e0b"}}>
+                    Updates Available ({updatable.filter(e=>cat==="All"||e.category===cat).length})
+                  </span>
+                  <button className="ext2-update-all" onClick={() => {
+                    updatable.forEach(e => patchExt(e.id, { version: e.latestVersion }));
+                    setNotice("All extensions updated");
+                  }}>Update All</button>
+                </div>
+                {updatable.filter(e=>cat==="All"||e.category===cat).map(e => <ExtCard key={e.id} e={e}/>)}
               </>
-            ) : (
-              <button className="btn-ext" onClick={()=>patchExt(e.id,{installed:true,enabled:true})}>Install</button>
             )}
+            {/* Installed */}
+            {filteredInstalled.length > 0 && (
+              <>
+                <div className="ext2-section-hd">
+                  <span className="ext2-section-title">Installed ({filteredInstalled.length})</span>
+                </div>
+                {filteredInstalled.map(e => <ExtCard key={e.id} e={e}/>)}
+              </>
+            )}
+            {/* Available */}
+            {filteredAvailable.length > 0 && (
+              <>
+                <div className="ext2-section-hd">
+                  <span className="ext2-section-title">Available ({filteredAvailable.length})</span>
+                </div>
+                {filteredAvailable.map(e => <ExtCard key={e.id} e={e}/>)}
+              </>
+            )}
+            {!filtered.length && <div className="ext2-empty">No extensions match your search</div>}
           </div>
+          {/* Preview pane */}
+          {selectedExt && (
+            <div className="ext2-preview">
+              <div className="ext2-preview-name">{selectedExt.name}</div>
+              <div className="ext2-preview-author">{selectedExt.author} · {selectedExt.category} · v{selectedExt.version}</div>
+              <div className="ext2-preview-desc">{selectedExt.desc}</div>
+              {selectedExt.tags?.length > 0 && (
+                <div className="ext2-preview-tags">
+                  {selectedExt.tags.map(t => <span key={t} className="ext2-preview-tag">{t}</span>)}
+                </div>
+              )}
+            </div>
+          )}
+        </>
+      )}
+
+      {tab === "tools" && (
+        <div className="panel-scroll">
+          <div className="tool-section">
+            <div className="tool-hd">
+              <span>RUNTIME TOOLS</span>
+              <button className="btn-tiny" title="Refresh" onClick={refreshTools}><Ic.Ref/></button>
+            </div>
+            {tools.map(t => (
+              <div key={t.id} className={`tool-row ${t.installed ? "ok" : "missing"}`}>
+                <span className="tool-dot"/>
+                <div className="tool-info">
+                  <div className="tool-name">{t.label}</div>
+                  <div className="tool-meta">{t.installed ? `${t.version || "installed"} · ${t.path}` : t.install_hint}</div>
+                </div>
+              </div>
+            ))}
+            {!tools.length && <div className="tool-empty">Runtime scan pending</div>}
+          </div>
+          <div className="tool-section">
+            <div className="tool-hd">
+              <span>PROJECT TASKS</span>
+              <span className="tool-root" title={workspaceRoot}>{workspaceRoot || "no workspace"}</span>
+            </div>
+            <div className="tool-actions">
+              <button className="btn-ext" disabled={!hasTool("npm") || !!busy} onClick={() => runAction("npm install", () => npmInstall(workspaceRoot || MOCK_ROOT))}>npm install</button>
+              <button className="btn-ext" disabled={!hasTool("python") || !!busy} onClick={runPython}>Run Python</button>
+            </div>
+            {scripts.map(s => (
+              <div key={s.name} className="script-row">
+                <div className="script-main">
+                  <span className="script-name">{s.name}</span>
+                  <span className="script-cmd">{s.command}</span>
+                </div>
+                <button className="btn-ext" disabled={!hasTool("npm") || !!busy} onClick={() => runScript(s.name)}>Run</button>
+              </div>
+            ))}
+            {!scripts.length && <div className="tool-empty">No package.json scripts found</div>}
+          </div>
+          <div className="tool-section">
+            <div className="tool-hd"><span>GITHUB</span></div>
+            <input className="way-input" type="password" placeholder="GitHub token (repo access)" value={githubToken} onChange={e => setGithubToken(e.target.value)}/>
+            <input className="way-input" placeholder="Clone target folder" value={cloneTarget} onChange={e => setCloneTarget(e.target.value)}/>
+            <div className="tool-actions">
+              <button className="btn-ext" onClick={saveGithubToken}>Save Token</button>
+              <button className="btn-ext" disabled={!hasTool("git") || !!busy} onClick={loadGithubRepos}>Load Repos</button>
+              <button className="btn-ext ghost" onClick={() => onOpenSide?.("git")}>Source Control</button>
+            </div>
+            {githubRepos.slice(0, 12).map(repo => (
+              <div key={repo.id} className="repo-row">
+                <div className="repo-main">
+                  <span className="repo-name">{repo.name}</span>
+                  <span className="repo-meta">{repo.private ? "private" : "public"} · {repo.updatedAt?.slice(0,10)}</span>
+                </div>
+                <button className="btn-ext" disabled={!hasTool("git") || !!busy} onClick={() => runAction(`Clone ${repo.name}`, () => gitClone(cloneTarget || workspaceRoot || MOCK_ROOT, repo.cloneUrl))}>Clone</button>
+              </div>
+            ))}
+          </div>
+          {notice && <div className="tool-notice">{notice}</div>}
+          {error && <div className="tool-error">{error}</div>}
         </div>
-      ))}
-      {!filtered.length && <div className="ext-empty">No extensions found</div>}
-      {notice && <div className="tool-notice">{notice}</div>}
-      {error && <div className="tool-error">{error}</div>}
+      )}
+    </div>
+  );
+}
+// ── Accounts Panel ────────────────────────────────────────────────────────────
+const EyeIcon = () => (
+  <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24">
+    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+    <circle cx="12" cy="12" r="3"/>
+  </svg>
+);
+const EyeOffIcon = () => (
+  <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24">
+    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/>
+    <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/>
+    <line x1="1" y1="1" x2="23" y2="23"/>
+  </svg>
+);
+const EditIcon = () => (
+  <svg width="11" height="11" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24">
+    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+  </svg>
+);
+
+function AccountEditPopup({ acc, manager, refresh, onClose }) {
+  const [label,  setLabel]  = useState(acc.label  || "");
+  const [model,  setModel]  = useState(acc.model  || "");
+  const [apiKey, setApiKey] = useState("");
+  const [showKey, setShowKey] = useState(false);
+  const [busy,   setBusy]   = useState(false);
+  const [error,  setError]  = useState("");
+
+  const save = async () => {
+    setBusy(true); setError("");
+    try {
+      const patch = { label, model };
+      if (apiKey.trim()) patch.apiKey = apiKey.trim();
+      await manager.update(acc.id, patch);
+      refresh();
+      onClose();
+    } catch(e) {
+      setError(String(e?.message || e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="acc-edit-popup" onClick={e=>e.stopPropagation()}>
+      <div className="aep-head">
+        <span className="aep-title">Edit Account</span>
+        <button className="btn-tiny" onClick={onClose}><Ic.X/></button>
+      </div>
+      <div className="aep-row">
+        <label className="aep-lbl">Label</label>
+        <input className="aep-inp" value={label} onChange={e=>setLabel(e.target.value)} placeholder="Account label"/>
+      </div>
+      <div className="aep-row">
+        <label className="aep-lbl">Model</label>
+        <input className="aep-inp" value={model} onChange={e=>setModel(e.target.value)} placeholder="Model name"/>
+      </div>
+      <div className="aep-row">
+        <label className="aep-lbl">API Key</label>
+        <div className="aep-key-wrap">
+          <input
+            className="aep-inp"
+            type={showKey ? "text" : "password"}
+            value={apiKey}
+            onChange={e=>setApiKey(e.target.value)}
+            placeholder="Leave blank to keep current"
+          />
+          <button className="aep-eye" title={showKey?"Hide":"Show"} onClick={()=>setShowKey(v=>!v)}>
+            {showKey ? <EyeOffIcon/> : <EyeIcon/>}
+          </button>
+        </div>
+        <span className="aep-hint">Current key is securely stored — only enter a new key to replace it.</span>
+      </div>
+      {error && <div className="aep-error">{error}</div>}
+      <div className="aep-foot">
+        <button className="btn-primary" disabled={busy} onClick={save}>{busy?"Saving…":"Save"}</button>
+        <button className="btn-secondary" onClick={onClose}>Cancel</button>
+      </div>
     </div>
   );
 }
 
-// ── Accounts Panel ────────────────────────────────────────────────────────────
 function AccountsPanel({ manager, status, refresh, routerScores, routerStrategy, onStrategy, onToast }) {
   const [form,    setForm]    = useState({provider:"chatgpt",label:"",apiKey:"",model:""});
   const [showAdd, setShowAdd] = useState(false);
+  const [showAddKey, setShowAddKey] = useState(false);
+  const [editingId, setEditingId] = useState(null);
+  // GitHub login state
+  const [ghUser, setGhUser] = useState(() => manager?.getGitHubUser?.() || null);
+  const [showGhForm, setShowGhForm] = useState(false);
+  const [ghToken, setGhToken] = useState("");
+  const [ghShowToken, setGhShowToken] = useState(false);
+  const [ghBusy, setGhBusy] = useState(false);
+  const [ghError, setGhError] = useState("");
+
+  const signInGitHub = async () => {
+    if (!ghToken.trim()) { setGhError("Please enter your GitHub Personal Access Token"); return; }
+    setGhBusy(true); setGhError("");
+    try {
+      const res = await fetch("https://api.github.com/user", {
+        headers: { "Accept": "application/vnd.github+json", "Authorization": `Bearer ${ghToken.trim()}` },
+      });
+      if (!res.ok) throw new Error(`GitHub API error ${res.status} — check your token`);
+      const user = await res.json();
+      const info = { login: user.login, name: user.name || user.login, avatar_url: user.avatar_url };
+      await manager.setGitHubToken(ghToken.trim());
+      manager.setGitHubUser(info);
+      setGhUser(info);
+      setGhToken("");
+      setShowGhForm(false);
+      onToast?.({ msg: `✓ Signed in as ${user.login}`, type: "ok" });
+    } catch(e) {
+      setGhError(String(e?.message || e));
+    } finally {
+      setGhBusy(false);
+    }
+  };
+
+  const signOutGitHub = async () => {
+    await manager.setGitHubToken(null);
+    manager.setGitHubUser(null);
+    setGhUser(null);
+    setShowGhForm(false);
+    onToast?.({ msg: "Signed out of GitHub", type: "info" });
+  };
+
   const SC = {active:"#22c55e",limited:"#f59e0b",error:"#ef4444",disabled:"#6b7280"};
   const SL = {active:"ready",limited:"limited",error:"error",disabled:"off"};
   const accounts = status.accounts || [];
@@ -417,7 +637,60 @@ function AccountsPanel({ manager, status, refresh, routerScores, routerStrategy,
   };
 
   return (
-    <div className="panel-scroll">
+    <div className="panel-scroll" onClick={()=>editingId&&setEditingId(null)}>
+      {/* ── GitHub Account Section ── */}
+      <div className="gh-account-section">
+        <div className="gh-section-hd">
+          <span className="gh-section-icon">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/></svg>
+          </span>
+          <span className="gh-section-title">GitHub</span>
+        </div>
+        {ghUser ? (
+          <div className="gh-user-row">
+            {ghUser.avatar_url && <img className="gh-avatar" src={ghUser.avatar_url} alt="" width={24} height={24}/>}
+            <div className="gh-user-info">
+              <div className="gh-user-login">{ghUser.login} <span className="gh-badge">GitHub</span></div>
+              {ghUser.name && ghUser.name !== ghUser.login && <div className="gh-user-name">{ghUser.name}</div>}
+            </div>
+            <div className="gh-user-actions">
+              <button className="gh-action-btn" title="Sign out of GitHub" onClick={signOutGitHub}>Sign Out</button>
+            </div>
+          </div>
+        ) : showGhForm ? (
+          <div className="gh-signin-form">
+            <div className="gh-form-hint">
+              Generate a token at <strong>github.com → Settings → Developer settings → Personal access tokens</strong>. Required scopes: <code>repo</code>, <code>read:user</code>.
+            </div>
+            <div className="add-key-wrap">
+              <input
+                className="way-input"
+                type={ghShowToken ? "text" : "password"}
+                placeholder="ghp_xxxxxxxxxxxxxxxxxxxx"
+                value={ghToken}
+                onChange={e=>setGhToken(e.target.value)}
+                onKeyDown={e=>e.key==="Enter"&&signInGitHub()}
+                autoFocus
+              />
+              <button className="add-key-eye" onClick={()=>setGhShowToken(v=>!v)}>
+                {ghShowToken ? <EyeOffIcon/> : <EyeIcon/>}
+              </button>
+            </div>
+            {ghError && <div className="gh-error">{ghError}</div>}
+            <div className="form-row">
+              <button className="btn-primary" disabled={ghBusy} onClick={signInGitHub}>{ghBusy?"Signing in…":"Sign in"}</button>
+              <button className="btn-secondary" onClick={()=>{setShowGhForm(false);setGhError("");}}>Cancel</button>
+            </div>
+          </div>
+        ) : (
+          <button className="gh-signin-btn" onClick={()=>setShowGhForm(true)}>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/></svg>
+            Sign in to GitHub
+          </button>
+        )}
+      </div>
+      <div className="gh-divider"/>
+
       {status.active && (
         <div className="active-acc-badge" style={{borderColor:PROVIDERS[status.active.provider]?.color}}>
           <span style={{color:PROVIDERS[status.active.provider]?.color,fontSize:18}}>{PROVIDERS[status.active.provider]?.icon}</span>
@@ -453,7 +726,12 @@ function AccountsPanel({ manager, status, refresh, routerScores, routerStrategy,
             {Object.entries(PROVIDERS).map(([k,v])=><option key={k} value={k}>{v.icon} {v.label}</option>)}
           </select>
           <input className="way-input" placeholder="Label (e.g. GPT Account 2)" value={form.label} onChange={e=>setForm(f=>({...f,label:e.target.value}))}/>
-          <input className="way-input" type="password" placeholder="API Key" value={form.apiKey} onChange={e=>setForm(f=>({...f,apiKey:e.target.value}))}/>
+          <div className="add-key-wrap">
+            <input className="way-input" type={showAddKey?"text":"password"} placeholder="API Key" value={form.apiKey} onChange={e=>setForm(f=>({...f,apiKey:e.target.value}))}/>
+            <button className="add-key-eye" title={showAddKey?"Hide key":"Show key"} onClick={()=>setShowAddKey(v=>!v)}>
+              {showAddKey ? <EyeOffIcon/> : <EyeIcon/>}
+            </button>
+          </div>
           <input className="way-input" placeholder="Model (optional)" value={form.model} onChange={e=>setForm(f=>({...f,model:e.target.value}))}/>
           <div className="form-row"><button className="btn-primary" onClick={doAdd}>Add Account</button><button className="btn-secondary" onClick={()=>setShowAdd(false)}>Cancel</button></div>
         </div>
@@ -471,17 +749,28 @@ function AccountsPanel({ manager, status, refresh, routerScores, routerStrategy,
               <button className="btn-tiny danger" style={{marginLeft:"auto",fontSize:10,padding:"2px 6px"}} onClick={doSignOut}>Sign Out</button>
             </div>
             {accs.map(acc=>(
-              <div key={acc.id} className={`acc-row ${status.activeId===acc.id?"acc-active":""}`}
-                onClick={()=>{manager.setActive(acc.id);refresh();}}>
-                <span className="acc-dot" style={{background:SC[acc.status]}}/>
-                <span className="acc-lbl">{acc.label}</span>
-                <span className="acc-model">{acc.model}</span>
-                <span className="acc-usage">{((acc.tokensIn||0)+(acc.tokensOut||0)).toLocaleString()} tok · {fmtCost(acc.costUsd||0)}</span>
-                <span className="acc-status" style={{color:SC[acc.status]}}>{SL[acc.status]}</span>
-                <div className="acc-actions">
-                  {acc.status!=="active"&&<button className="btn-tiny" onClick={async e=>{e.stopPropagation();await manager.resetAccount(acc.id);refresh();}}><Ic.Ref/></button>}
-                  <button className="btn-tiny danger" onClick={async e=>{e.stopPropagation();await manager.remove(acc.id);refresh();}}><Ic.X/></button>
+              <div key={acc.id} className="acc-entry">
+                <div className={`acc-row ${status.activeId===acc.id?"acc-active":""}`}
+                  onClick={()=>{manager.setActive(acc.id);refresh();}}>
+                  <span className="acc-dot" style={{background:SC[acc.status]}}/>
+                  <span className="acc-lbl">{acc.label}</span>
+                  <span className="acc-model">{acc.model}</span>
+                  <span className="acc-usage">{((acc.tokensIn||0)+(acc.tokensOut||0)).toLocaleString()} tok · {fmtCost(acc.costUsd||0)}</span>
+                  <span className="acc-status" style={{color:SC[acc.status]}}>{SL[acc.status]}</span>
+                  <div className="acc-actions">
+                    {acc.status!=="active"&&<button className="btn-tiny" title="Reset" onClick={async e=>{e.stopPropagation();await manager.resetAccount(acc.id);refresh();}}><Ic.Ref/></button>}
+                    <button className="btn-tiny" title="Edit" onClick={e=>{e.stopPropagation();setEditingId(id=>id===acc.id?null:acc.id);}}><EditIcon/></button>
+                    <button className="btn-tiny danger" title="Remove" onClick={async e=>{e.stopPropagation();await manager.remove(acc.id);refresh();}}><Ic.X/></button>
+                  </div>
                 </div>
+                {editingId === acc.id && (
+                  <AccountEditPopup
+                    acc={acc}
+                    manager={manager}
+                    refresh={refresh}
+                    onClose={()=>setEditingId(null)}
+                  />
+                )}
               </div>
             ))}
           </div>
@@ -496,7 +785,7 @@ function AccountsPanel({ manager, status, refresh, routerScores, routerStrategy,
 }
 
 // ── Search Panel ──────────────────────────────────────────────────────────────
-function SearchPanel({ code }) {
+function SearchPanel({ code, theme, setTheme, fontSize, setFontSize, wordWrap, setWordWrap, lineNumbers, setLineNumbers, minimapEnabled, setMinimapEnabled, tabSize, setTabSize, onOpenSettings }) {
   const [q,setQ]        = useState("");
   const [results,setR]  = useState([]);
   const run = ()=>{
@@ -505,6 +794,24 @@ function SearchPanel({ code }) {
   };
   return (
     <div className="panel-scroll">
+      <div className="search-quick-controls">
+        <select className="search-mini-select" value={theme} onChange={e=>setTheme(e.target.value)} title="Theme">
+          <option value="vs-dark">Dark</option>
+          <option value="vs-light">Light</option>
+          <option value="hc-black">HC Black</option>
+        </select>
+        <button className="search-mini-btn" onClick={()=>setFontSize(s=>Math.max(11, s-1))} title="Font smaller">A-</button>
+        <button className="search-mini-btn" onClick={()=>setFontSize(s=>Math.min(24, s+1))} title="Font bigger">A+</button>
+        <button className={`search-mini-btn ${wordWrap==="on"?"on":""}`} onClick={()=>setWordWrap(w=>w==="on"?"off":"on")}>Wrap</button>
+        <button className={`search-mini-btn ${lineNumbers?"on":""}`} onClick={()=>setLineNumbers(v=>!v)}>Lines</button>
+        <button className={`search-mini-btn ${minimapEnabled?"on":""}`} onClick={()=>setMinimapEnabled(v=>!v)}>Map</button>
+        <select className="search-mini-select tab-size" value={tabSize} onChange={e=>setTabSize(Number(e.target.value))} title="Tab size">
+          <option value={2}>Tab 2</option>
+          <option value={4}>Tab 4</option>
+          <option value={8}>Tab 8</option>
+        </select>
+        <button className="search-mini-btn" onClick={onOpenSettings}>Settings</button>
+      </div>
       <div className="search-wrap">
         <input className="search-inp" placeholder="Search in editor…" value={q}
           onChange={e=>setQ(e.target.value)} onKeyDown={e=>e.key==="Enter"&&run()}/>
@@ -628,12 +935,15 @@ function ChatPanel({ manager, status, editorRef, lang, code, onProposeEdit }) {
   const [streaming,setStr] = useState(false);
   const [streamTxt,setST]  = useState("");
   const [agentId, setAgentId] = useState(loadAgentMode);
+  const [detached, setDetached] = useState(false);
+  const [dragPos,  setDragPos]  = useState({ x: Math.max(0, window.innerWidth - 460), y: 60 });
+  const [dragSize, setDragSize] = useState({ w: 440, h: 560 });
   const streamRef = useRef("");
   const endRef    = useRef(null);
   const activeAgent = AI_AGENTS.find(a => a.id === agentId) || AI_AGENTS[0];
 
   useEffect(()=>{ endRef.current?.scrollIntoView({behavior:"smooth"}); },[msgs,streamTxt]);
-  useEffect(() => { saveAgentMode(agentId); }, [agentId]);
+  useEffect(()=>{ saveAgentMode(agentId); }, [agentId]);
 
   const withAgentInstruction = (prompt) => {
     return [
@@ -678,8 +988,8 @@ function ChatPanel({ manager, status, editorRef, lang, code, onProposeEdit }) {
   const pColor = prov?.color||"var(--accent)";
   const pIcon  = prov?.icon||"◈";
 
-  return (
-    <div className="chat-panel">
+  const chatBody = (
+    <>
       <div className="chat-acc-bar">
         {status.active
           ? <div className="chat-acc-tag" style={{color:pColor}}>{pIcon} <span className="chat-acc-name">{status.active.label}</span><span className="chat-acc-model">{status.active.model}</span></div>
@@ -689,6 +999,13 @@ function ChatPanel({ manager, status, editorRef, lang, code, onProposeEdit }) {
             {AI_AGENTS.map(a=><option key={a.id} value={a.id}>{a.label}</option>)}
           </select>
           <span className="chat-acc-count">{(status.accounts||[]).filter(a=>a.status==="active").length} ready</span>
+          <button
+            className="btn-tiny chat-detach-btn"
+            title={detached ? "Dock back" : "Detach to floating window"}
+            onClick={()=>setDetached(v=>!v)}
+          >
+            {detached ? <Ic.Attach/> : <Ic.Popout/>}
+          </button>
         </div>
       </div>
       <div className="chat-agent-hint">
@@ -739,8 +1056,33 @@ function ChatPanel({ manager, status, editorRef, lang, code, onProposeEdit }) {
           {streaming?"⏳":"↑"}
         </button>
       </div>
-    </div>
+    </>
   );
+
+  if (detached) {
+    return (
+      <>
+        <DockPlaceholder title="AI Chat" onDock={() => setDetached(false)}/>
+        <FloatingPanel
+          id="chat_win"
+          title="Way AI Chat"
+          detached={true}
+          pos={dragPos}
+          setPos={setDragPos}
+          size={dragSize}
+          setSize={setDragSize}
+          onDock={() => setDetached(false)}
+          minW={340} minH={420}
+        >
+          <div className="chat-panel" style={{height:"100%", overflow:"hidden"}}>
+            {chatBody}
+          </div>
+        </FloatingPanel>
+      </>
+    );
+  }
+
+  return <div className="chat-panel">{chatBody}</div>;
 }
 
 // ── Main App ──────────────────────────────────────────────────────────────────
@@ -916,19 +1258,25 @@ export default function App() {
   const tabCodeRef = useRef({});
   const autocompleteCacheRef = useRef({ key:"", at:0, value:"" });
   const suppressAutoSaveRef = useRef(false);
+  const dragStartRef = useRef({ x: 0, startWidth: 0, side: "primary" });
   const initialSettings = useRef(loadEditorSettings()).current;
 
   // Layout
-  const [activity, setActivity] = useState("files"); // default: show file explorer
+  const [activity, setActivity] = useState(initialSettings.activity || "search"); // default: show search + controls
+  const [menuSearch, setMenuSearch] = useState("");
   const [sideOpen, setSideOpen] = useState(true);
   const [secondarySideOpen, setSecondarySideOpen] = useState(false);
   const [secondaryTab, setSecondaryTab] = useState("outline");
+  const [rightPanel, setRightPanel] = useState("chat"); // right icon-bar active panel
   const [panelOpen, setPanelOpen] = useState(true);
   const [panelActive, setPanelActive] = useState("terminal");
   const [layoutMode, setLayoutMode] = useState("default");
   const [openMenu, setOpenMenu] = useState(null);
   const [panelHeight, setPanelHeight] = useState(initialSettings.panelHeight || 240);
+  const [sideWidth, setSideWidth] = useState(initialSettings.sideWidth || 260);
+  const [secondarySideWidth, setSecondarySideWidth] = useState(initialSettings.secondarySideWidth || 280);
   const [cmdOpen, setCmdOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [workspaceRoot, setWorkspaceRoot] = useState(initialSettings.workspaceRoot || MOCK_ROOT);
 
   // Editor state
@@ -937,12 +1285,21 @@ export default function App() {
   const [theme,    setTheme]    = useState(initialSettings.theme || "vs-dark");
   const [fontSize, setFontSize] = useState(initialSettings.fontSize || 13);
   const [wordWrap, setWordWrap] = useState(initialSettings.wordWrap || "off");
+  const [lineNumbers, setLineNumbers] = useState(initialSettings.lineNumbers ?? true);
+  const [minimapEnabled, setMinimapEnabled] = useState(initialSettings.minimapEnabled ?? true);
+  const [tabSize, setTabSize] = useState(initialSettings.tabSize || 2);
+  const [showStartupSettings, setShowStartupSettings] = useState(initialSettings.showStartupSettings ?? true);
   const [aiEditMode, setAiEditMode] = useState(initialSettings.aiEditMode || "preview");
   const [tabs,     setTabs]     = useState([]);          // open file tabs
   const [activeTab,setActiveTab]= useState(null);        // current tab key (path)
   const [tabCode,  setTabCode]  = useState({});          // tabKey → content
   const [tabSavedCode,setTabSavedCode] = useState({});   // tabKey → last saved content
   const [dirtyTabs,setDirtyTabs] = useState({});          // tabKey → unsaved bool
+  const [extTabData, setExtTabData] = useState({});      // tabKey → extension metadata
+  const [extInstalled, setExtInstalled] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("wayai_ext_installed_v1") || "[]"); }
+    catch { return []; }
+  });
 
   // Accounts
   const [toast,  setToast]      = useState(null);
@@ -951,6 +1308,13 @@ export default function App() {
   const [routerStrategy,setRT]  = useState("balanced");
   const [accStatus, setAccStatus] = useState({accounts:[],activeId:null,active:null});
   const [outputLines, setOutputLines] = useState(["Way AI Code started", "Command Palette: Ctrl+Shift+P", "Toggle panel: Ctrl+`"]);
+
+  // ── Floating dock panels ───────────────────────────────────────────────────
+  const wayaiDock    = useDockPanel("wayai",    { w: 500, h: 620 });
+  const filesDock    = useDockPanel("files",    { w: 300, h: 540 });
+  const gitDock      = useDockPanel("git",      { w: 300, h: 520 });
+  const extDock      = useDockPanel("ext",      { w: 360, h: 640 });
+  const accountsDock = useDockPanel("accounts", { w: 360, h: 560 });
 
   const [manager] = useState(()=>new AccountManager(st=>{
     setAccStatus(st);
@@ -987,8 +1351,27 @@ export default function App() {
   },[manager]);
 
   useEffect(()=>{
-    saveEditorSettings({ lang, theme, fontSize, wordWrap, panelHeight, workspaceRoot, aiEditMode });
-  }, [lang, theme, fontSize, wordWrap, panelHeight, workspaceRoot, aiEditMode]);
+    saveEditorSettings({
+      lang,
+      theme,
+      fontSize,
+      wordWrap,
+      lineNumbers,
+      minimapEnabled,
+      tabSize,
+      panelHeight,
+      sideWidth,
+      secondarySideWidth,
+      workspaceRoot,
+      aiEditMode,
+      activity,
+      showStartupSettings,
+    });
+  }, [lang, theme, fontSize, wordWrap, lineNumbers, minimapEnabled, tabSize, panelHeight, sideWidth, secondarySideWidth, workspaceRoot, aiEditMode, activity, showStartupSettings]);
+
+  useEffect(() => {
+    if (showStartupSettings) setSettingsOpen(true);
+  }, [showStartupSettings]);
 
   useEffect(()=>{ accStatusRef.current = accStatus; }, [accStatus]);
   useEffect(()=>{ routerScoresRef.current = routerScores; }, [routerScores]);
@@ -1163,6 +1546,19 @@ export default function App() {
     setDirtyTabs(prev => ({ ...prev, [key]: false }));
   }, []);
 
+  const handleOpenExtension = useCallback((ext) => {
+    if (!ext?.id) return;
+    const key = `ext::${ext.id}`;
+    const exists = tabs.find(t => t.key === key);
+    if (exists) {
+      setActiveTab(key);
+      return;
+    }
+    setTabs(prev => [...prev, { key, name: ext.name, lang: "extension", isExtension: true }]);
+    setExtTabData(prev => ({ ...prev, [key]: ext }));
+    setActiveTab(key);
+  }, [tabs]);
+
   // ── Switch tab ────────────────────────────────────────────────────────────────
   const switchTab = useCallback((key) => {
     const t = tabs.find(t => t.key === key);
@@ -1174,23 +1570,40 @@ export default function App() {
 
   // ── Close tab ─────────────────────────────────────────────────────────────────
   const closeTab = useCallback((key) => {
+    // Dispose Monaco model to prevent memory leaks
+    if (monacoRef.current) {
+      const model = monacoRef.current.editor.getModels().find(m => m.uri.path === `/${key}` || m.uri.toString().endsWith(key));
+      if (model) { try { model.dispose(); } catch {} }
+    }
     const remaining = tabs.filter(t => t.key !== key);
     setTabs(remaining);
     setTabCode(prev => { const next = {...prev}; delete next[key]; return next; });
     setTabSavedCode(prev => { const next = {...prev}; delete next[key]; return next; });
     setDirtyTabs(prev => { const next = {...prev}; delete next[key]; return next; });
+    setExtTabData(prev => { const next = {...prev}; delete next[key]; return next; });
     if (activeTab === key) {
       if (remaining.length) {
         const last = remaining[remaining.length - 1];
         setActiveTab(last.key);
-        setLang(last.lang || "javascript");
-        setCode(tabCode[last.key] || "");
+        if (!last.isExtension) {
+          setLang(last.lang || "javascript");
+          setCode(tabCode[last.key] || "");
+        }
       } else {
         setActiveTab(null);
         setCode("");
       }
     }
   }, [tabs, activeTab, tabCode]);
+
+  useEffect(() => {
+    const onInstalledChanged = () => {
+      try { setExtInstalled(JSON.parse(localStorage.getItem("wayai_ext_installed_v1") || "[]")); }
+      catch { setExtInstalled([]); }
+    };
+    window.addEventListener("wayai-ext-installed-changed", onInstalledChanged);
+    return () => window.removeEventListener("wayai-ext-installed-changed", onInstalledChanged);
+  }, []);
 
   // ── Code change + auto-save ───────────────────────────────────────────────────
   const saveTimer = useRef(null);
@@ -1322,14 +1735,55 @@ export default function App() {
   // ── Sidebar content ───────────────────────────────────────────────────────────
   const sideContent = () => {
     switch (activity) {
-      case "files":    return <FileExplorer onOpenFile={handleOpenFile} activeFile={activeTab} onRootChange={setWorkspaceRoot}/>;
-      case "search":   return <SearchPanel code={code}/>;
-      case "git":      return <GitPanel workspaceRoot={workspaceRoot}/>;
-      case "ext":      return <ExtPanel workspaceRoot={workspaceRoot} activeFile={activeTab} onOpenSide={id=>{setActivity(id);setSideOpen(true);}} onOutput={line=>{openPanel("output");pushOutput(line);}} manager={manager}/>;
-      case "accounts": return <AccountsPanel manager={manager} status={accStatus} refresh={()=>setAccStatus(manager.getStatus())} routerScores={routerScores} routerStrategy={routerStrategy} onStrategy={s=>{setRT(s);manager.router.setStrategy(s);}} onToast={setToast}/>;
-      case "chat":     return <ChatPanel manager={manager} status={accStatus} editorRef={editorRef} lang={lang} code={code} onProposeEdit={showInlineDiff}/>;
-      case "wayai":    return <WayAITab manager={manager} accStatus={accStatus} editorRef={editorRef} code={code} lang={lang} projectRoot={workspaceRoot} activeFile={activeTab} openFiles={tabs.map(t=>t.key)} />;
-      default:         return null;
+      case "files":
+        if (filesDock.detached) return <DockPlaceholder title="Explorer" onDock={filesDock.dock}/>;
+        return (
+          <ErrorBoundary key="files">
+            <div style={{display:"flex",flexDirection:"column",height:"100%",overflow:"hidden"}}>
+              <PanelHeader title="EXPLORER" onDetach={filesDock.undock}/>
+              <div style={{flex:1,overflow:"hidden"}}><FileExplorer onOpenFile={handleOpenFile} activeFile={activeTab} onRootChange={setWorkspaceRoot}/></div>
+            </div>
+          </ErrorBoundary>
+        );
+      case "search":
+        return <ErrorBoundary key="search"><SearchPanel code={code} theme={theme} setTheme={setTheme} fontSize={fontSize} setFontSize={setFontSize} wordWrap={wordWrap} setWordWrap={setWordWrap} lineNumbers={lineNumbers} setLineNumbers={setLineNumbers} minimapEnabled={minimapEnabled} setMinimapEnabled={setMinimapEnabled} tabSize={tabSize} setTabSize={setTabSize} onOpenSettings={()=>setSettingsOpen(true)}/></ErrorBoundary>;
+      case "git":
+        if (gitDock.detached) return <DockPlaceholder title="Source Control" onDock={gitDock.dock}/>;
+        return (
+          <ErrorBoundary key="git">
+            <div style={{display:"flex",flexDirection:"column",height:"100%",overflow:"hidden"}}>
+              <PanelHeader title="SOURCE CONTROL" onDetach={gitDock.undock}/>
+              <div style={{flex:1,overflow:"hidden"}}><GitPanel workspaceRoot={workspaceRoot}/></div>
+                          <div style={{flex:1,overflow:"hidden"}}><GitPanel workspaceRoot={workspaceRoot} manager={manager}/></div>
+            </div>
+          </ErrorBoundary>
+        );
+      case "ext":
+        if (extDock.detached) return <DockPlaceholder title="Extensions" onDock={extDock.dock}/>;
+        return <ErrorBoundary key="ext"><ExtPanel workspaceRoot={workspaceRoot} activeFile={activeTab} onOpenSide={id=>{setActivity(id);setSideOpen(true);}} onOutput={line=>{openPanel("output");pushOutput(line);}} manager={manager} onDetach={extDock.undock} onOpenExtension={handleOpenExtension}/></ErrorBoundary>;
+      case "accounts":
+        if (accountsDock.detached) return <DockPlaceholder title="Accounts" onDock={accountsDock.dock}/>;
+        return (
+          <ErrorBoundary key="accounts">
+            <div style={{display:"flex",flexDirection:"column",height:"100%",overflow:"hidden"}}>
+              <PanelHeader title="ACCOUNTS" onDetach={accountsDock.undock}/>
+              <div style={{flex:1,overflow:"auto"}}><AccountsPanel manager={manager} status={accStatus} refresh={()=>setAccStatus(manager.getStatus())} routerScores={routerScores} routerStrategy={routerStrategy} onStrategy={s=>{setRT(s);manager.router.setStrategy(s);}} onToast={setToast}/></div>
+            </div>
+          </ErrorBoundary>
+        );
+      case "chat":
+        return <ErrorBoundary key="chat"><ChatPanel manager={manager} status={accStatus} editorRef={editorRef} lang={lang} code={code} onProposeEdit={showInlineDiff}/></ErrorBoundary>;
+      case "wayai":
+        if (wayaiDock.detached) return <DockPlaceholder title="Way AI Agent" onDock={wayaiDock.dock}/>;
+        return (
+          <ErrorBoundary key="wayai">
+            <div style={{display:"flex",flexDirection:"column",height:"100%",overflow:"hidden"}}>
+              <PanelHeader title="WAY AI AGENT" onDetach={wayaiDock.undock}/>
+              <div style={{flex:1,overflow:"hidden"}}><WayAITab manager={manager} accStatus={accStatus} editorRef={editorRef} code={code} lang={lang} projectRoot={workspaceRoot} activeFile={activeTab} openFiles={tabs.map(t=>t.key)}/></div>
+            </div>
+          </ErrorBoundary>
+        );
+      default: return null;
     }
   };
 
@@ -1391,6 +1845,34 @@ export default function App() {
       setSecondarySideOpen(false);
     }
   }, []);
+
+  const startSideResize = useCallback((which, e) => {
+    e.preventDefault();
+    dragStartRef.current = {
+      x: e.clientX,
+      startWidth: which === "primary" ? sideWidth : secondarySideWidth,
+      side: which,
+    };
+    const min = which === "primary" ? 220 : 220;
+    const max = which === "primary" ? 520 : 500;
+
+    const onMove = (ev) => {
+      const { x, startWidth, side } = dragStartRef.current;
+      const delta = ev.clientX - x;
+      const next = side === "primary" ? startWidth + delta : startWidth - delta;
+      const clamped = Math.max(min, Math.min(max, next));
+      if (side === "primary") setSideWidth(clamped);
+      else setSecondarySideWidth(clamped);
+    };
+
+    const onUp = () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+  }, [sideWidth, secondarySideWidth]);
 
   useEffect(() => {
     const onDown = (e) => {
@@ -1561,11 +2043,16 @@ export default function App() {
   const prov        = PROVIDERS[accStatus.active?.provider];
   const accentColor = prov?.color || "#0078d4";
 
-  const ACTS = [
-    {id:"files",    Ico:Ic.Files,   title:"Explorer"},
-    {id:"search",   Ico:Ic.Search,  title:"Search"},
-    {id:"git",      Ico:Ic.Git,     title:"Source Control"},
-    {id:"ext",      Ico:Ic.Ext,     title:"Extensions"},
+  const ACTS_TOP = [
+    {id:"files",    Ico:Ic.Files,    title:"Explorer"},
+    {id:"search",   Ico:Ic.Search,   title:"Search"},
+    {id:"git",      Ico:Ic.Git,      title:"Source Control"},
+    {id:"ext",      Ico:Ic.Ext,      title:"Extensions"},
+  ];
+  const ACTS_BTM = [
+    {id:"chat",     Ico:Ic.Chat,     title:"AI Chat"},
+    {id:"wayai",    Ico:Ic.WayAI,    title:"Way AI Agent"},
+    {id:"accounts", Ico:Ic.Accounts, title:"Accounts"},
   ];
 
   // sidebar title
@@ -1577,11 +2064,105 @@ export default function App() {
       {toast && <div className={`toast ${toast.type||"info"}`} onClick={()=>setToast(null)}>{toast.msg}</div>}
       <CommandPalette open={cmdOpen} commands={commands} onClose={()=>setCmdOpen(false)}/>
 
+      {settingsOpen && (
+        <div className="settings-modal-overlay" onClick={()=>setSettingsOpen(false)}>
+          <div className="settings-modal" onClick={e=>e.stopPropagation()}>
+            <div className="settings-modal-head">
+              <div className="settings-modal-title">Quick Settings</div>
+              <button className="settings-close" onClick={()=>setSettingsOpen(false)}>×</button>
+            </div>
+            <div className="settings-modal-body">
+              <label className="settings-row">
+                <span>Default Sidebar</span>
+                <select value={activity} onChange={e=>{ setActivity(e.target.value); setSideOpen(true); }}>
+                  <option value="search">Search</option>
+                  <option value="files">Explorer</option>
+                  <option value="git">Source Control</option>
+                  <option value="ext">Extensions</option>
+                  <option value="chat">AI Chat</option>
+                </select>
+              </label>
+              <label className="settings-row">
+                <span>Theme</span>
+                <select value={theme} onChange={e=>setTheme(e.target.value)}>
+                  <option value="vs-dark">Dark</option>
+                  <option value="vs-light">Light</option>
+                  <option value="hc-black">HC Black</option>
+                </select>
+              </label>
+              <label className="settings-row">
+                <span>Font Size</span>
+                <input type="range" min="11" max="24" step="1" value={fontSize} onChange={e=>setFontSize(Number(e.target.value))} />
+              </label>
+              <label className="settings-check">
+                <input type="checkbox" checked={wordWrap==="on"} onChange={e=>setWordWrap(e.target.checked?"on":"off")} />
+                <span>Word Wrap</span>
+              </label>
+              <label className="settings-check">
+                <input type="checkbox" checked={lineNumbers} onChange={e=>setLineNumbers(e.target.checked)} />
+                <span>Line Numbers</span>
+              </label>
+              <label className="settings-check">
+                <input type="checkbox" checked={minimapEnabled} onChange={e=>setMinimapEnabled(e.target.checked)} />
+                <span>Minimap</span>
+              </label>
+              <label className="settings-row">
+                <span>Tab Size</span>
+                <select value={tabSize} onChange={e=>setTabSize(Number(e.target.value))}>
+                  <option value={2}>2 spaces</option>
+                  <option value={4}>4 spaces</option>
+                  <option value={8}>8 spaces</option>
+                </select>
+              </label>
+              <label className="settings-check">
+                <input type="checkbox" checked={showStartupSettings} onChange={e=>setShowStartupSettings(e.target.checked)} />
+                <span>Show this popup on startup</span>
+              </label>
+            </div>
+            <div className="settings-modal-foot">
+              <button className="btn-primary" onClick={()=>setSettingsOpen(false)}>Save & Close</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Floating Panels (rendered at root level, position:fixed) ─────── */}
+      <FloatingPanel id="files" title="Explorer" icon={<Ic.Files/>}
+        detached={filesDock.detached} pos={filesDock.pos} setPos={filesDock.setPos}
+        size={filesDock.size} setSize={filesDock.setSize} onDock={filesDock.dock} minW={240} minH={300}>
+        <FileExplorer onOpenFile={handleOpenFile} activeFile={activeTab} onRootChange={setWorkspaceRoot}/>
+      </FloatingPanel>
+
+      <FloatingPanel id="git" title="Source Control" icon={<Ic.Git/>}
+        detached={gitDock.detached} pos={gitDock.pos} setPos={gitDock.setPos}
+        size={gitDock.size} setSize={gitDock.setSize} onDock={gitDock.dock} minW={260} minH={300}>
+        <GitPanel workspaceRoot={workspaceRoot}/>
+        <GitPanel workspaceRoot={workspaceRoot} manager={manager}/>
+      </FloatingPanel>
+
+      <FloatingPanel id="ext" title="Extensions" icon={<Ic.Ext/>}
+        detached={extDock.detached} pos={extDock.pos} setPos={extDock.setPos}
+        size={extDock.size} setSize={extDock.setSize} onDock={extDock.dock} minW={300} minH={360}>
+        <ExtPanel workspaceRoot={workspaceRoot} activeFile={activeTab} onOpenSide={id=>{setActivity(id);setSideOpen(true);extDock.dock();}} onOutput={line=>{openPanel("output");pushOutput(line);}} manager={manager} onOpenExtension={handleOpenExtension}/>
+      </FloatingPanel>
+
+      <FloatingPanel id="accounts" title="Accounts" icon={<Ic.Accounts/>}
+        detached={accountsDock.detached} pos={accountsDock.pos} setPos={accountsDock.setPos}
+        size={accountsDock.size} setSize={accountsDock.setSize} onDock={accountsDock.dock} minW={280} minH={320}>
+        <AccountsPanel manager={manager} status={accStatus} refresh={()=>setAccStatus(manager.getStatus())} routerScores={routerScores} routerStrategy={routerStrategy} onStrategy={s=>{setRT(s);manager.router.setStrategy(s);}} onToast={setToast}/>
+      </FloatingPanel>
+
+      <FloatingPanel id="wayai" title="Way AI Agent" icon={<Ic.WayAI/>}
+        detached={wayaiDock.detached} pos={wayaiDock.pos} setPos={wayaiDock.setPos}
+        size={wayaiDock.size} setSize={wayaiDock.setSize} onDock={wayaiDock.dock} minW={340} minH={420}>
+        <WayAITab manager={manager} accStatus={accStatus} editorRef={editorRef} code={code} lang={lang} projectRoot={workspaceRoot} activeFile={activeTab} openFiles={tabs.map(t=>t.key)}/>
+      </FloatingPanel>
+
       {/* Workbench */}
       <div className="workbench">
         {/* Activity Bar */}
         <div className="act-bar">
-          {ACTS.map(({id,Ico,title})=>(
+          {ACTS_TOP.map(({id,Ico,title})=>(
             <button key={id} title={title}
               className={`act-btn ${activity===id&&sideOpen?"act-on":""}`}
               onClick={()=>switchAct(id)}>
@@ -1589,14 +2170,22 @@ export default function App() {
             </button>
           ))}
           <div className="act-spacer"/>
-          <button title="AI Chat"  className={`act-btn ${activity==="chat"&&sideOpen?"act-on":""}`}    onClick={()=>switchAct("chat")}><Ic.Chat/></button>
-          <button title="Way AI Agent" className={`act-btn ${activity==="wayai"&&sideOpen?"act-on":""}`} onClick={()=>switchAct("wayai")}><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><polygon points="12 2 22 12 12 22 2 12"/></svg></button>
-          <button title="Accounts" className={`act-btn ${activity==="accounts"&&sideOpen?"act-on":""}`} onClick={()=>switchAct("accounts")}><Ic.Accounts/></button>
+          {ACTS_BTM.map(({id,Ico,title})=>(
+            <button key={id} title={title}
+              className={`act-btn ${activity===id&&sideOpen?"act-on":""}`}
+              onClick={()=>switchAct(id)}>
+              <Ico/>
+            </button>
+          ))}
+          <button title="Settings" className="act-btn" onClick={()=>setSettingsOpen(true)}><Ic.Settings/></button>
+          <button title="Toggle Right Panel" className={`act-btn${secondarySideOpen?" act-on":""}`} onClick={()=>setSecondarySideOpen(v=>!v)}>
+            <svg width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.6" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="16" y1="3" x2="16" y2="21"/></svg>
+          </button>
         </div>
 
         {/* Sidebar */}
         {sideOpen && (
-          <div className="sidebar">
+          <div className="sidebar" style={{ width: sideWidth, minWidth: sideWidth, maxWidth: sideWidth }}>
             <div className="side-titlebar">
               <span className="side-title">{SIDE_TITLES[activity]||activity.toUpperCase()}</span>
               <button className="icon-btn" onClick={()=>setSideOpen(false)}><Ic.X/></button>
@@ -1604,6 +2193,8 @@ export default function App() {
             <div className="side-body">{sideContent()}</div>
           </div>
         )}
+
+        {sideOpen && <div className="side-resizer" title="Drag to resize sidebar" onMouseDown={(e)=>startSideResize("primary", e)} />}
 
         {/* Main area */}
         <div className="main-area">
@@ -1614,11 +2205,14 @@ export default function App() {
               const dotColor = isDirty ? "#f59e0b" : (LANG_DOT[t.lang] || "#666");
               return (
                 <div key={t.key}
-                  className={`editor-tab ${activeTab===t.key?"tab-on":""} ${isDirty?"tab-dirty":""}`}
+                  className={`editor-tab ${activeTab===t.key?"tab-on":""} ${isDirty?"tab-dirty":""} ${t.isExtension?"tab-ext":""}`}
                   onClick={()=>switchTab(t.key)}
                   title={t.key}
+                  style={t.isExtension && activeTab===t.key ? { borderTopColor: "var(--accent)" } : undefined}
                 >
-                  <span className="tab-dot" style={{background:dotColor}}/>
+                  {t.isExtension
+                    ? <span style={{fontSize:12,color:"var(--accent)",flexShrink:0,filter:"drop-shadow(0 0 3px var(--accent))"}}>◈</span>
+                    : <span className="tab-dot" style={{background:dotColor}}/>}
                   <span className="tab-name">{t.name}{isDirty ? " *" : ""}</span>
                   <button className="tab-x" onClick={e=>{e.stopPropagation();closeTab(t.key);}}>
                     <Ic.X/>
@@ -1631,41 +2225,99 @@ export default function App() {
           {/* Editor */}
           <div className="editor-wrap">
             {tabs.length > 0 && activeTab ? (
-              <Editor
-                key={activeTab}
-                height="100%"
-                language={lang}
-                value={code}
-                theme={theme}
-                onChange={handleCodeChange}
-                onMount={(e, monaco) => { editorRef.current = e; monacoRef.current = monaco; setupInlineCompletions(monaco); }}
-                options={{
-                  fontSize,
-                  fontFamily: "'JetBrains Mono','Cascadia Code',Consolas,monospace",
-                  fontLigatures: true,
-                  minimap: { enabled: true, scale: 1 },
-                  lineNumbers: "on",
-                  renderLineHighlight: "all",
-                  scrollBeyondLastLine: false,
-                  automaticLayout: true,
-                  padding: { top: 8, bottom: 8 },
-                  bracketPairColorization: { enabled: true },
-                  guides: { bracketPairs: true, indentation: true },
-                  smoothScrolling: true,
-                  cursorBlinking: "smooth",
-                  wordWrap,
-                  folding: true,
-                  tabSize: 2,
-                  inlineSuggest: { enabled: true, mode: "prefix" },
-                  suggest: { showKeywords: true },
-                  quickSuggestions: { other: true, comments: false, strings: false },
-                }}
-              />
+              (() => {
+                const activeTabObj = tabs.find(t => t.key === activeTab);
+                if (activeTabObj?.isExtension) {
+                  const ext = extTabData[activeTab];
+                  return (
+                    <ExtensionPreviewTab
+                      ext={ext}
+                      installed={!!ext?.id && extInstalled.includes(ext.id)}
+                      onInstall={(id) => {
+                        const current = (() => { try { return JSON.parse(localStorage.getItem("wayai_ext_installed_v1") || "[]"); } catch { return []; } })();
+                        if (!current.includes(id)) {
+                          const next = [...current, id];
+                          localStorage.setItem("wayai_ext_installed_v1", JSON.stringify(next));
+                          setExtInstalled(next);
+                          window.dispatchEvent(new Event("wayai-ext-installed-changed"));
+                        }
+                      }}
+                      onUninstall={(id) => {
+                        const current = (() => { try { return JSON.parse(localStorage.getItem("wayai_ext_installed_v1") || "[]"); } catch { return []; } })();
+                        const next = current.filter(x => x !== id);
+                        localStorage.setItem("wayai_ext_installed_v1", JSON.stringify(next));
+                        setExtInstalled(next);
+                        window.dispatchEvent(new Event("wayai-ext-installed-changed"));
+                      }}
+                    />
+                  );
+                }
+                return (
+                  <Editor
+                    key={activeTab}
+                    height="100%"
+                    language={lang}
+                    value={code}
+                    theme={theme}
+                    onChange={handleCodeChange}
+                    onMount={(e, monaco) => { editorRef.current = e; monacoRef.current = monaco; setupInlineCompletions(monaco); }}
+                    options={{
+                      fontSize,
+                      fontFamily: "'JetBrains Mono','Cascadia Code',Consolas,monospace",
+                      fontLigatures: true,
+                      minimap: { enabled: minimapEnabled, scale: 1 },
+                      lineNumbers: lineNumbers ? "on" : "off",
+                      renderLineHighlight: "all",
+                      scrollBeyondLastLine: false,
+                      automaticLayout: true,
+                      padding: { top: 8, bottom: 8 },
+                      bracketPairColorization: { enabled: true },
+                      guides: { bracketPairs: true, indentation: true },
+                      smoothScrolling: true,
+                      cursorBlinking: "smooth",
+                      wordWrap,
+                      folding: true,
+                      tabSize,
+                      inlineSuggest: { enabled: true, mode: "prefix" },
+                      suggest: { showKeywords: true },
+                      quickSuggestions: { other: true, comments: false, strings: false },
+                    }}
+                  />
+                );
+              })()
             ) : (
-              <div className="empty-ed">
-                <div className="ee-mark">◈</div>
-                <div className="ee-title">Way AI Code</div>
-                <div className="ee-hint">Open a file from the Explorer</div>
+              <div className="empty-ed welcome-ed">
+                <div className="welcome-watermark" aria-hidden="true">
+                  <img src="/brand-logo.svg" alt="" />
+                </div>
+                <div className="welcome-head">
+                  <img className="welcome-logo" src="/brand-logo.svg" alt="Way AI Code" />
+                  <div>
+                    <div className="ee-title">Way AI Code</div>
+                    <div className="ee-hint">Editing evolved</div>
+                  </div>
+                </div>
+
+                <div className="welcome-grid">
+                  <div className="welcome-col">
+                    <div className="welcome-col-title">Start</div>
+                    <button className="welcome-link" onClick={()=>setCmdOpen(true)}>New File...</button>
+                    <button className="welcome-link" onClick={()=>setCmdOpen(true)}>Open File...</button>
+                    <button className="welcome-link" onClick={()=>openSide("files")}>Open Folder...</button>
+                    <button className="welcome-link" onClick={()=>openSide("git")}>Clone Git Repository...</button>
+                    <button className="welcome-link" onClick={()=>openSide("wayai")}>Connect to...</button>
+                  </div>
+
+                  <div className="welcome-col">
+                    <div className="welcome-col-title">Recent</div>
+                    <button className="welcome-link recent" onClick={()=>openSide("files")}>{workspaceRoot || "way ai code"}</button>
+                    <button className="welcome-link recent" onClick={()=>openSide("files")}>interior-way-vr</button>
+                    <button className="welcome-link recent" onClick={()=>openSide("files")}>way-ai</button>
+                    <button className="welcome-link recent" onClick={()=>openSide("files")}>project-1</button>
+                  </div>
+                </div>
+
+                <div className="welcome-note">Tip: Open any folder to launch full AI coding workspace.</div>
               </div>
             )}
           </div>
@@ -1684,78 +2336,166 @@ export default function App() {
         </div>
 
         {secondarySideOpen && (
-          <div className="secondary-sidebar">
-            <div className="secondary-titlebar">
-              <span className="side-title">SECONDARY SIDEBAR</span>
-              <button className="icon-btn" onClick={()=>setSecondarySideOpen(false)}><Ic.X/></button>
-            </div>
-            <div className="secondary-body">
-              <div className="secondary-tabs">
-                <button className={`secondary-tab ${secondaryTab==="outline"?"on":""}`} onClick={()=>setSecondaryTab("outline")}>Outline</button>
-                <button className={`secondary-tab ${secondaryTab==="symbols"?"on":""}`} onClick={()=>setSecondaryTab("symbols")}>Symbols</button>
-                <button className={`secondary-tab ${secondaryTab==="ai"?"on":""}`} onClick={()=>setSecondaryTab("ai")}>AI Actions</button>
+          <>
+            <div className="side-resizer secondary" title="Drag to resize" onMouseDown={(e)=>startSideResize("secondary", e)} />
+            <div className="rsb-wrap" style={{ width: secondarySideWidth, minWidth: secondarySideWidth, maxWidth: secondarySideWidth }}>
+              <div className="rsb-act">
+                {[
+                  { id: "chat", Icon: Ic.Chat, tip: "AI Chat" },
+                  { id: "wayai", Icon: Ic.WayAI, tip: "Way AI Agent" },
+                  { id: "installed", Icon: Ic.Ext, tip: "Installed Apps" },
+                  { id: "accounts", Icon: Ic.Accounts, tip: "Accounts" },
+                  { id: "outline", Icon: Ic.Files, tip: "Outline" },
+                ].map(({ id, Icon, tip }) => (
+                  <button key={id} title={tip} className={`rsb-act-btn${rightPanel===id ? " rsb-act-on" : ""}`} onClick={()=>setRightPanel(id)}>
+                    <Icon />
+                    <span className="rsb-act-tooltip">{tip}</span>
+                  </button>
+                ))}
+                <div className="rsb-act-spacer" />
+                <button className="rsb-act-btn rsb-act-close" title="Close" onClick={()=>setSecondarySideOpen(false)}>
+                  <Ic.X />
+                </button>
               </div>
-              {secondaryTab === "outline" && (
-                <div className="secondary-card">
-                  <div className="secondary-card-hd">Open Files</div>
-                  <div className="secondary-list">
-                    {tabs.length ? tabs.map(t => (
-                      <button key={t.key} className={`secondary-list-item ${activeTab===t.key?"on":""}`} onClick={()=>switchTab(t.key)}>
-                        {t.name}
-                      </button>
-                    )) : <div className="secondary-empty">No files open</div>}
+
+              <div className="rsb-body">
+                {rightPanel === "chat" && (
+                  <div className="rsb-panel">
+                    <div className="rsb-hd"><Ic.Chat /><span>AI Chat</span></div>
+                    <ErrorBoundary key="rsb-chat">
+                      <ChatPanel manager={manager} status={accStatus} editorRef={editorRef} lang={lang} code={code} onProposeEdit={showInlineDiff} />
+                    </ErrorBoundary>
                   </div>
-                </div>
-              )}
-              {secondaryTab === "symbols" && (
-                <div className="secondary-card">
-                  <div className="secondary-card-hd">{activeTab ? `Symbols in ${tabs.find(t=>t.key===activeTab)?.name || "file"}` : "Symbols"}</div>
-                  <div className="secondary-list mono">
-                    {symbolItems.length ? symbolItems.map((s, idx) => (
-                      <button key={`${s.name}:${s.line}:${idx}`} className="secondary-list-item" onClick={()=>revealLine(s.line)}>
-                        <span className="secondary-kind">{s.kind}</span>
-                        <span className="secondary-name">{s.name}</span>
-                        <span className="secondary-line">L{s.line}</span>
-                      </button>
-                    )) : <div className="secondary-empty">No symbols found</div>}
+                )}
+
+                {rightPanel === "wayai" && (
+                  <div className="rsb-panel">
+                    <div className="rsb-hd"><Ic.WayAI /><span>Way AI Agent</span></div>
+                    <ErrorBoundary key="rsb-wayai">
+                      <WayAITab manager={manager} accStatus={accStatus} editorRef={editorRef} code={code} lang={lang} projectRoot={workspaceRoot} activeFile={activeTab} openFiles={tabs.map(t=>t.key)} />
+                    </ErrorBoundary>
                   </div>
-                </div>
-              )}
-              {secondaryTab === "ai" && (
-                <>
-                  <div className="secondary-card">
-                    <div className="secondary-card-hd">AI Quick Actions</div>
-                    <div className="secondary-card-actions">
-                      <button className="btn-icon-sm" onClick={()=>runAiEdit("Fix selected code","Fix bugs and correctness issues in this code")}>Fix</button>
-                      <button className="btn-icon-sm" onClick={()=>runAiEdit("Refactor selected code","Refactor this code for clarity, maintainability, and best practices")}>Refactor</button>
-                      <button className="btn-icon-sm" onClick={()=>runAiEdit("Comment selected code","Add concise useful comments to this code")}>Comment</button>
+                )}
+
+                {rightPanel === "installed" && (
+                  <div className="rsb-panel">
+                    <div className="rsb-hd"><Ic.Ext /><span>Installed Apps</span><span className="rsb-badge">{extInstalled.length}</span></div>
+                    {extInstalled.length === 0 ? (
+                      <div className="rsb-empty">
+                        <Ic.Ext />
+                        <span>No extensions installed</span>
+                        <button className="btn-icon-sm" onClick={()=>{ setActivity("ext"); setSideOpen(true); }}>Browse Extensions</button>
+                      </div>
+                    ) : (
+                      <div className="rsb-installed-list">
+                        {extInstalled.map(ext => (
+                          <button key={ext.id} className="rsb-ext-card" onClick={()=>handleOpenExtension(ext)}>
+                            <div className="rsb-ext-icon" style={{ background: `linear-gradient(135deg,${ext.color || "#1177bb"},${ext.color2 || "#23235b"})` }}>
+                              {ext.icon ? <img src={ext.icon} alt="" onError={e=>{ e.target.style.display = "none"; }} /> : <Ic.Ext />}
+                            </div>
+                            <div className="rsb-ext-info">
+                              <span className="rsb-ext-name">{ext.displayName || ext.name || ext.id}</span>
+                              <span className="rsb-ext-ns">{ext.namespace || ext.publisher || ""}</span>
+                            </div>
+                            <span className="rsb-ext-open">↗</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {rightPanel === "accounts" && (
+                  <div className="rsb-panel">
+                    <div className="rsb-hd"><Ic.Accounts /><span>Accounts</span><span className="rsb-badge">{accStatus.accounts?.filter(a=>a.status === "active").length || 0} active</span></div>
+                    <div className="rsb-accounts-list">
+                      {(accStatus.accounts || []).map(acc => {
+                        const accountProvider = PROVIDERS[acc.provider] || {};
+                        const isActive = acc.id === accStatus.activeId;
+                        return (
+                          <div key={acc.id} className={`rsb-acc-card${isActive ? " rsb-acc-active" : ""}`} onClick={()=>manager.setActive(acc.id)}>
+                            <div className="rsb-acc-dot" style={{ color: accountProvider.color || "var(--t3)" }}>{accountProvider.local ? "○" : "●"}</div>
+                            <div className="rsb-acc-info">
+                              <span className="rsb-acc-label">{acc.label}</span>
+                              <span className="rsb-acc-model">{acc.model}</span>
+                            </div>
+                            <div className="rsb-acc-right">
+                              <span className={`rsb-acc-status ${acc.status}`}>{acc.status}</span>
+                              {isActive && <span className="rsb-acc-check">✓</span>}
+                            </div>
+                          </div>
+                        );
+                      })}
+                      {!accStatus.accounts?.length && (
+                        <div className="rsb-empty">
+                          <Ic.Accounts />
+                          <span>No accounts</span>
+                          <button className="btn-icon-sm" onClick={()=>{ setActivity("accounts"); setSideOpen(true); }}>Add Account</button>
+                        </div>
+                      )}
+                    </div>
+                    <button className="rsb-manage-btn" onClick={()=>{ setActivity("accounts"); setSideOpen(true); }}>Manage Accounts →</button>
+                  </div>
+                )}
+
+                {rightPanel === "outline" && (
+                  <div className="rsb-panel">
+                    <div className="rsb-hd"><Ic.Files /><span>Outline</span></div>
+                    <div className="rsb-block">
+                      <div className="rsb-block-hd">Open Files</div>
+                      <div className="rsb-list">
+                        {tabs.length ? tabs.map(t => (
+                          <button key={t.key} className={`rsb-list-item${activeTab===t.key ? " on" : ""}`} onClick={()=>switchTab(t.key)}>
+                            <span className="rsb-list-dot" style={{ color: LANG_DOT[t.lang] || "#666" }}>●</span>
+                            {t.name}
+                          </button>
+                        )) : <div className="rsb-empty-inline">No files open</div>}
+                      </div>
+                    </div>
+                    {symbolItems.length > 0 && (
+                      <div className="rsb-block">
+                        <div className="rsb-block-hd">Symbols</div>
+                        <div className="rsb-list mono">
+                          {symbolItems.map((s, idx) => (
+                            <button key={`${s.name}:${s.line}:${idx}`} className="rsb-list-item" onClick={()=>revealLine(s.line)}>
+                              <span className="rsb-sym-kind">{s.kind}</span>
+                              <span className="rsb-sym-name">{s.name}</span>
+                              <span className="rsb-sym-line">L{s.line}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    <div className="rsb-block">
+                      <div className="rsb-block-hd">Quick Actions</div>
+                      <div className="rsb-actions">
+                        <button className="rsb-action-btn" onClick={()=>runAiEdit("Fix selected code","Fix bugs and correctness issues in this code")}>Fix</button>
+                        <button className="rsb-action-btn" onClick={()=>runAiEdit("Refactor selected code","Refactor this code for clarity, maintainability, and best practices")}>Refactor</button>
+                        <button className="rsb-action-btn" onClick={()=>runAiEdit("Comment selected code","Add concise useful comments to this code")}>Comment</button>
+                      </div>
+                      <div className="rsb-actions" style={{ marginTop: 6 }}>
+                        <button className="rsb-action-btn" onClick={()=>applyLayoutMode("default")}>Default</button>
+                        <button className="rsb-action-btn" onClick={()=>applyLayoutMode("focus")}>Focus</button>
+                        <button className="rsb-action-btn" onClick={()=>applyLayoutMode("zen")}>Zen</button>
+                      </div>
+                    </div>
+                    <div className="rsb-file-meta">
+                      <div className="rsb-meta-row"><span>File</span><span>{activeTab ? activeTab.split(/[\\/]/).pop() : "-"}</span></div>
+                      <div className="rsb-meta-row"><span>Lang</span><span>{lang}</span></div>
+                      <div className="rsb-meta-row"><span>Theme</span><span>{theme.replace("vs-", "")}</span></div>
+                      <div className="rsb-meta-row"><span>Font</span><span>{fontSize}px</span></div>
                     </div>
                   </div>
-                  <div className="secondary-card">
-                    <div className="secondary-card-hd">Quick Layout</div>
-                    <div className="secondary-card-actions">
-                      <button className="btn-icon-sm" onClick={()=>applyLayoutMode("default")}>Default</button>
-                      <button className="btn-icon-sm" onClick={()=>applyLayoutMode("focus")}>Focus</button>
-                      <button className="btn-icon-sm" onClick={()=>applyLayoutMode("zen")}>Zen</button>
-                    </div>
-                  </div>
-                </>
-              )}
-              <div className="secondary-card">
-                <div className="secondary-card-hd">Active File</div>
-                <div className="secondary-card-body">{activeTab || "No file selected"}</div>
-                <div className="secondary-card-meta">Language: {lang}</div>
-                <div className="secondary-card-meta">Theme: {theme}</div>
-                <div className="secondary-card-meta">Font: {fontSize}px</div>
-                <div className="secondary-card-meta">Wrap: {wordWrap}</div>
+                )}
               </div>
             </div>
-          </div>
+          </>
         )}
       </div>
 
       <div className="workbench-menubar" ref={menuBarRef}>
         <div className="wb-menu-left">
+          <img className="wb-app-logo" src="/brand-logo.svg" alt="Way logo" title="Way AI Code" />
           {MENU_GROUPS.map(group => (
             <div key={group.label} className="wb-menu-wrap">
               <button
@@ -1779,10 +2519,24 @@ export default function App() {
             </div>
           ))}
         </div>
+        <div className="wb-menu-center">
+          <div className="wb-search-wrap">
+            <span className="wb-search-icon">⌕</span>
+            <input
+              className="wb-search-input"
+              type="text"
+              placeholder="Search files, commands…"
+              value={menuSearch}
+              onChange={e => setMenuSearch(e.target.value)}
+              onKeyDown={e => { if (e.key === "Escape") setMenuSearch(""); }}
+            />
+            {menuSearch && <button className="wb-search-clear" onClick={() => setMenuSearch("")}>✕</button>}
+          </div>
+        </div>
         <div className="wb-menu-right">
           <div className="wb-quick-group">
             <select className="wb-quick-select" value={lang} onChange={e=>setLang(e.target.value)} title="Language">
-              {LANGS.map(l=><option key={l}>{l}</option>)}
+              {LANGS.map(l => <option key={l}>{l}</option>)}
             </select>
             <select className="wb-quick-select" value={theme} onChange={e=>setTheme(e.target.value)} title="Theme">
               <option value="vs-dark">Dark</option>
@@ -1790,31 +2544,30 @@ export default function App() {
               <option value="hc-black">HC Black</option>
             </select>
             <select className="wb-quick-select" value={fontSize} onChange={e=>setFontSize(Number(e.target.value))} title="Font size">
-              {[12,13,14,15,16,18].map(s=><option key={s} value={s}>{s}px</option>)}
+              {[12, 13, 14, 15, 16, 18].map(s => <option key={s} value={s}>{s}px</option>)}
             </select>
-            <button className={`wb-chip ${wordWrap==="on"?"on":""}`} onClick={()=>setWordWrap(w=>w==="on"?"off":"on")}>Wrap</button>
+            <button className={`wb-chip ${wordWrap==="on" ? "on" : ""}`} onClick={()=>setWordWrap(w => w === "on" ? "off" : "on")}>Wrap</button>
           </div>
           <select className="wb-layout-select" value={layoutMode} onChange={e=>applyLayoutMode(e.target.value)} title="Layout options">
             <option value="default">Layout: Default</option>
             <option value="focus">Layout: Focus</option>
             <option value="zen">Layout: Zen</option>
           </select>
-          <button className={`wb-toggle-btn ${sideOpen?"on":""}`} onClick={()=>setSideOpen(v=>!v)}>Toggle Primary Sidebar</button>
-          <button className={`wb-toggle-btn ${panelOpen?"on":""}`} onClick={()=>setPanelOpen(v=>!v)}>Toggle Panel</button>
-          <button className={`wb-toggle-btn ${secondarySideOpen?"on":""}`} onClick={()=>setSecondarySideOpen(v=>!v)}>Toggle Secondary Sidebar</button>
+          <button className={`wb-toggle-btn ${sideOpen ? "on" : ""}`} onClick={()=>setSideOpen(v=>!v)}>Toggle Primary Sidebar</button>
+          <button className={`wb-toggle-btn ${panelOpen ? "on" : ""}`} onClick={()=>setPanelOpen(v=>!v)}>Toggle Panel</button>
+          <button className={`wb-toggle-btn ${secondarySideOpen ? "on" : ""}`} onClick={()=>setSecondarySideOpen(v=>!v)}>Toggle Secondary Sidebar</button>
         </div>
       </div>
 
-      {/* Status bar */}
-      <div className="statusbar" style={{background:accentColor}}>
+      <div className="statusbar" style={{ background: accentColor }}>
         <div className="sb-left">
-          <span className="sb-item">⎇ main</span>
+          <span className="sb-item">main</span>
           <span className="sb-item">
-            {(accStatus.accounts||[]).filter(a=>a.status==="limited").length > 0
-              ? `⚠ ${(accStatus.accounts||[]).filter(a=>a.status==="limited").length} limited`
-              : "✓ accounts ok"}
+            {(accStatus.accounts || []).filter(a=>a.status === "limited").length > 0
+              ? `${(accStatus.accounts || []).filter(a=>a.status === "limited").length} limited`
+              : "accounts ok"}
           </span>
-          {detected.length > 0 && <span className="sb-item">🟢 {detected.map(d=>d.id).join(", ")}</span>}
+          {detected.length > 0 && <span className="sb-item">tools {detected.map(d=>d.id).join(", ")}</span>}
         </div>
         <div className="sb-right">
           <span className="sb-item">{lang}</span>
@@ -1822,13 +2575,12 @@ export default function App() {
           <span className="sb-item">Spaces: 2</span>
           {accStatus.active && (
             <span className="sb-item sb-acc">
-              {prov?.icon} {accStatus.active.label}
-              · {(accStatus.accounts||[]).filter(a=>a.status==="active").length}/{(accStatus.accounts||[]).length}
+              {prov?.icon} {accStatus.active.label} · {(accStatus.accounts || []).filter(a=>a.status === "active").length}/{(accStatus.accounts || []).length}
             </span>
           )}
           {!panelOpen && (
             <button className="sb-item sb-btn" onClick={()=>openPanel("terminal")}>
-              <Ic.Term/> Terminal
+              <Ic.Term /> Terminal
             </button>
           )}
           {panelOpen && <span className="sb-item">{panelActive}</span>}

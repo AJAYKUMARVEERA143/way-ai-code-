@@ -1,0 +1,404 @@
+/* ═══════════════════════════════════════════════════════
+   Way AI Code — ExtensionsPanel.css
+   ALL styles scoped to .extp-* and .exc-* and .exd-*
+   Uses ONLY existing CSS variables from src/index.css
+   Does NOT override any existing styles
+═══════════════════════════════════════════════════════ */
+
+/* ── Root layout ─────────────────────────────────────── */
+.extp-root {
+  display: flex;
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg1);
+}
+
+/* ── Sidebar (left) ──────────────────────────────────── */
+.extp-sidebar {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+/* When detail panel open, sidebar fixed width */
+.extp-root:has(.extp-detail) .extp-sidebar { width: 260px; min-width: 220px; }
+
+.extp-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px 4px;
+  flex-shrink: 0;
+}
+.extp-title {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .06em;
+  color: var(--t2);
+}
+.extp-hbtns { display: flex; gap: 2px; }
+.extp-hbtn {
+  width: 22px;
+  height: 22px;
+  background: transparent;
+  border: none;
+  color: var(--t3);
+  cursor: pointer;
+  border-radius: 3px;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all .1s;
+}
+.extp-hbtn:hover { background: var(--bg3); color: var(--t1); }
+
+/* ── Search ──────────────────────────────────────────── */
+.extp-search {
+  display: flex;
+  align-items: center;
+  margin: 4px 8px;
+  background: var(--bg2);
+  border: 1px solid var(--b1);
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+.extp-search:focus-within { border-color: var(--accent2); }
+.extp-search-icon { padding: 0 6px; font-size: 12px; color: var(--t3); }
+.extp-search-inp {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: var(--t1);
+  font-size: 12px;
+  padding: 5px 0;
+  outline: none;
+}
+.extp-search-inp::placeholder { color: var(--t3); font-size: 12px; }
+.extp-search-x {
+  padding: 0 6px;
+  background: transparent;
+  border: none;
+  color: var(--t3);
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+}
+.extp-search-x:hover { color: var(--t1); }
+
+/* ── Category pills ──────────────────────────────────── */
+.extp-cats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  padding: 4px 8px;
+  flex-shrink: 0;
+}
+.extp-cat {
+  padding: 2px 8px;
+  border: 1px solid var(--b1);
+  border-radius: 10px;
+  background: transparent;
+  color: var(--t2);
+  font-size: 11px;
+  cursor: pointer;
+  transition: all .12s;
+}
+.extp-cat.extp-cat-on {
+  border-color: var(--accent2);
+  color: var(--accent2);
+  background: rgba(0,120,212,.1);
+}
+.extp-cat:hover { border-color: var(--b2); color: var(--t1); }
+
+/* ── List scroll ─────────────────────────────────────── */
+.extp-list {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-bottom: 8px;
+}
+.extp-list::-webkit-scrollbar       { width: 4px; }
+.extp-list::-webkit-scrollbar-thumb { background: var(--bg3); border-radius: 2px; }
+
+/* ── Section heads (<summary>) ───────────────────────── */
+.extp-sec-head {
+  padding: 6px 12px 3px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .05em;
+  color: var(--t2);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  list-style: none;
+  user-select: none;
+}
+.extp-sec-head::marker   { display: none; content: ""; }
+.extp-sec-head::before   { content: "▾"; font-size: 10px; transition: transform .15s; margin-right: 2px; }
+details:not([open]) > .extp-sec-head::before { transform: rotate(-90deg); }
+
+/* Non-summary use */
+div.extp-sec-head::before { display: none; }
+
+.extp-error {
+  padding: 8px 12px;
+  font-size: 12px;
+  color: var(--red);
+  background: rgba(244,71,71,.1);
+  margin: 4px 8px;
+  border-radius: 3px;
+}
+.extp-empty {
+  padding: 16px 12px;
+  font-size: 12px;
+  color: var(--t3);
+  text-align: center;
+}
+
+/* ── MCP section ─────────────────────────────────────── */
+.extp-mcp       { padding: 12px 16px; text-align: center; }
+.extp-mcp-icon  { font-size: 40px; color: var(--accent2); margin-bottom: 8px; }
+.extp-mcp-title { font-size: 14px; font-weight: 600; color: var(--t1); margin-bottom: 6px; }
+.extp-mcp-desc  { font-size: 12px; color: var(--t2); line-height: 1.5; margin-bottom: 12px; }
+.extp-mcp-btn {
+  padding: 6px 16px;
+  background: var(--accent);
+  border: none;
+  border-radius: 3px;
+  color: #fff;
+  font-size: 12px;
+  cursor: pointer;
+  transition: opacity .1s;
+}
+.extp-mcp-btn:hover { opacity: .85; }
+
+/* ═══════════════════════════════════════════════════════
+   Extension Card  (.exc-*)
+═══════════════════════════════════════════════════════ */
+.exc-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 6px 12px;
+  cursor: pointer;
+  transition: background .1s;
+  border-left: 3px solid transparent;
+}
+.exc-card:hover   { background: rgba(255,255,255,.04); }
+.exc-selected     { background: rgba(0,120,212,.12) !important; border-left-color: var(--accent2); }
+
+.exc-icon-wrap { flex-shrink: 0; width: 40px; height: 40px; }
+.exc-icon-img  { border-radius: 3px; display: block; width: 40px; height: 40px; object-fit: cover; }
+.exc-icon-fallback {
+  width: 40px;
+  height: 40px;
+  border-radius: 3px;
+  background: var(--bg3);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--accent2);
+}
+
+.exc-info      { flex: 1; min-width: 0; }
+.exc-name      { font-size: 12px; font-weight: 600; color: var(--t1); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.exc-desc      { font-size: 11px; color: var(--t2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 1px; }
+.exc-meta      { display: flex; align-items: center; gap: 6px; margin-top: 2px; flex-wrap: wrap; }
+.exc-publisher { font-size: 10px; color: var(--accent2); }
+.exc-dl        { font-size: 10px; color: var(--t3); }
+.exc-stars     { font-size: 10px; color: #d29922; }
+
+.exc-action { flex-shrink: 0; }
+.exc-btn-dl,
+.exc-btn-gear {
+  width: 22px;
+  height: 22px;
+  background: transparent;
+  border: none;
+  color: var(--t2);
+  cursor: pointer;
+  font-size: 16px;
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all .1s;
+}
+.exc-btn-dl:hover,
+.exc-btn-gear:hover { background: var(--bg3); color: var(--t1); }
+
+/* ═══════════════════════════════════════════════════════
+   Right detail panel  (.extp-detail / .exd-*)
+═══════════════════════════════════════════════════════ */
+.extp-detail {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg0);
+  border-left: 1px solid var(--b1);
+}
+
+.exd-root  { display: flex; flex-direction: column; height: 100%; overflow: hidden; }
+.exd-empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: var(--t3);
+  font-size: 13px;
+}
+.exd-empty-icon { font-size: 32px; opacity: .3; }
+
+/* Header */
+.exd-header {
+  display: flex;
+  gap: 14px;
+  padding: 20px 20px 12px;
+  border-bottom: 1px solid var(--b1);
+  flex-shrink: 0;
+}
+.exd-icon { flex-shrink: 0; }
+.exd-icon-fallback {
+  width: 80px;
+  height: 80px;
+  border-radius: 6px;
+  background: var(--bg2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 32px;
+  font-weight: 700;
+  color: var(--accent2);
+}
+.exd-meta     { flex: 1; min-width: 0; }
+.exd-name     { font-size: 20px; font-weight: 700; color: var(--t1); margin-bottom: 4px; }
+.exd-pub-row  { display: flex; align-items: center; gap: 10px; font-size: 12px; color: var(--t2); margin-bottom: 6px; flex-wrap: wrap; }
+.exd-publisher{ color: var(--accent2); font-weight: 500; }
+.exd-verified { color: #22c55e; font-size: 10px; }
+.exd-dl       { font-size: 12px; color: var(--t3); }
+.exd-rating   { font-size: 12px; color: #d29922; }
+.exd-desc     { font-size: 13px; color: var(--t2); line-height: 1.5; margin-bottom: 10px; }
+
+.exd-actions { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.exd-btn-install {
+  padding: 5px 14px;
+  background: var(--accent);
+  border: none;
+  border-radius: 3px;
+  color: #fff;
+  font-size: 12px;
+  cursor: pointer;
+  transition: opacity .1s;
+}
+.exd-btn-install:hover { opacity: .85; }
+.exd-btn-secondary {
+  padding: 5px 12px;
+  background: transparent;
+  border: 1px solid var(--b2);
+  color: var(--t1);
+  border-radius: 3px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background .1s;
+}
+.exd-btn-secondary:hover { background: var(--bg2); }
+.exd-btn-gear {
+  padding: 5px 8px;
+  background: transparent;
+  border: none;
+  color: var(--t2);
+  font-size: 14px;
+  cursor: pointer;
+}
+.exd-autoupdate {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--t2);
+  cursor: pointer;
+}
+
+/* Tabs */
+.exd-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--b1);
+  flex-shrink: 0;
+  overflow-x: auto;
+}
+.exd-tabs::-webkit-scrollbar { height: 2px; }
+.exd-tab {
+  padding: 8px 14px;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--t2);
+  font-size: 12px;
+  cursor: pointer;
+  transition: all .12s;
+  font-weight: 500;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.exd-tab:hover { color: var(--t1); }
+.exd-tab-on    { color: var(--t1); border-bottom-color: var(--accent2); }
+
+/* Content */
+.exd-content {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+}
+.exd-content::-webkit-scrollbar       { width: 5px; }
+.exd-content::-webkit-scrollbar-thumb { background: var(--bg3); border-radius: 2px; }
+
+.exd-body    { display: flex; height: 100%; min-height: 0; }
+.exd-readme  { flex: 1; padding: 16px 20px; overflow-y: auto; min-width: 0; }
+.exd-readme pre {
+  font-size: 13px;
+  color: var(--t1);
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: var(--ui);
+  margin: 0;
+}
+.exd-sidebar {
+  width: 200px;
+  min-width: 180px;
+  padding: 16px;
+  border-left: 1px solid var(--b1);
+  flex-shrink: 0;
+  overflow-y: auto;
+}
+.exd-sb-section { margin-bottom: 16px; }
+.exd-sb-title   { font-size: 11px; font-weight: 700; letter-spacing: .05em; color: var(--t2); margin-bottom: 6px; }
+.exd-sb-tag     {
+  display: inline-block;
+  padding: 2px 8px;
+  margin: 2px;
+  background: var(--bg2);
+  border: 1px solid var(--b1);
+  border-radius: 10px;
+  font-size: 11px;
+  color: var(--t2);
+}
+.exd-sb-link {
+  display: block;
+  font-size: 12px;
+  color: var(--accent2);
+  padding: 2px 0;
+  text-decoration: none;
+  cursor: pointer;
+}
+.exd-sb-link:hover { text-decoration: underline; }
+.exd-sb-info       { font-size: 12px; color: var(--t2); padding: 1px 0; }
+.exd-placeholder   { padding: 20px; font-size: 13px; color: var(--t2); }

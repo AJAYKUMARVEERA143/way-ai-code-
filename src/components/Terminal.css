@@ -43,7 +43,7 @@
   min-height: 35px;
   background: #252526;
   border-bottom: 1px solid #1e1e1e;
-  overflow: hidden;
+  overflow: visible;
   user-select: none;
   padding-top: 4px; /* push down from drag handle */
 }
@@ -219,6 +219,135 @@
 .term-action-btn:disabled {
   opacity: 0.35;
   cursor: not-allowed;
+}
+
+/* ── + split button ─────────────────────────────────────────── */
+.term-plus-btn-group {
+  display: flex;
+  align-items: center;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.term-plus-btn-group .term-plus-main {
+  border-radius: 4px 0 0 4px;
+  padding-right: 2px;
+}
+
+.term-plus-btn-group .term-plus-arrow {
+  width: 14px;
+  height: 26px;
+  padding: 0 1px;
+  border-radius: 0 4px 4px 0;
+  border-left: 1px solid rgba(255,255,255,0.08);
+}
+
+.term-plus-btn-group:hover .term-plus-main,
+.term-plus-btn-group:hover .term-plus-arrow {
+  background: rgba(255,255,255,0.1);
+  color: #ffffff;
+}
+
+/* ── Dots button ────────────────────────────────────────────── */
+.term-dots-btn {
+  letter-spacing: 1px;
+}
+
+/* ── Dropdown wrap + menus ──────────────────────────────────── */
+.term-dropdown-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.term-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 300;
+  background: #252526;
+  border: 1px solid #454545;
+  border-radius: 6px;
+  box-shadow: 0 8px 28px rgba(0,0,0,0.55);
+  min-width: 230px;
+  padding: 4px 0;
+  animation: termDdIn 0.12s ease;
+}
+
+@keyframes termDdIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.term-dropdown-plus { min-width: 240px; }
+.term-dropdown-dots { min-width: 250px; }
+
+.term-dd-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 14px;
+  cursor: pointer;
+  color: #cccccc;
+  font-size: 12px;
+  transition: background 0.1s, color 0.1s;
+  user-select: none;
+}
+
+.term-dd-item:hover {
+  background: rgba(0, 120, 212, 0.25);
+  color: #ffffff;
+}
+
+.term-dd-item.active {
+  color: #4fc1ff;
+}
+
+.term-dd-item.danger {
+  color: #f48771;
+}
+
+.term-dd-item.danger:hover {
+  background: rgba(244, 135, 113, 0.18);
+  color: #f48771;
+}
+
+.term-dd-label {
+  flex: 1;
+}
+
+.term-dd-shortcut {
+  font-size: 10.5px;
+  color: #6a6a6a;
+  letter-spacing: 0.02em;
+  flex-shrink: 0;
+}
+
+.term-dd-item:hover .term-dd-shortcut {
+  color: #9d9d9d;
+}
+
+.term-dd-shell-icon {
+  font-size: 10px;
+  font-family: "Cascadia Code", Consolas, monospace;
+  color: #4ec9b0;
+  background: rgba(78, 201, 176, 0.12);
+  border-radius: 3px;
+  padding: 1px 5px;
+  line-height: 1.4;
+  flex-shrink: 0;
+}
+
+.term-dd-check {
+  font-size: 11px;
+  color: #4fc1ff;
+  flex-shrink: 0;
+}
+
+.term-dd-sep {
+  height: 1px;
+  background: #3c3c3c;
+  margin: 3px 0;
 }
 
 /* ── Content area ───────────────────────────────────────────── */

@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { PROVIDERS } from "../../lib/AccountManager.js";
-import { MOCK_ROOT, readFile, searchFiles, writeFile, runToolCommand } from "../../lib/fs.js";
+import { MOCK_ROOT, readFile, searchFiles, writeFile, createFile, deleteEntry, runToolCommand } from "../../lib/fs.js";
 import { AgentRunner } from "./AgentRunner.js";
 import TokenTracker from "./TokenTracker.jsx";
 import TaskHistory from "./TaskHistory.jsx";
@@ -100,31 +100,81 @@ function stamp() {
   return new Date().toLocaleTimeString();
 }
 
+const DEFAULT_TOKEN_STATS = {
+  currentInput: 0, currentOutput: 0,
+  sessionInput: 0, sessionOutput: 0,
+  tokensPerSecond: 0, estimatedCost: 0,
+  sessionCost: 0, activeAccountId: null,
+  perAccount: {}, rotationMessage: "",
+};
+
+function mkSession(name = "Chat 1") {
+  return {
+    id: `cs_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+    name,
+    taskInput: "",
+    currentTask: null,
+    streaming: false,
+    shadowMode: false,
+    debugLog: [],
+    tokenStats: { ...DEFAULT_TOKEN_STATS },
+  };
+}
+
 export default function WayAITab({ manager, accStatus, editorRef, code, lang, projectRoot, activeFile, openFiles }) {
-  const [taskInput, setTaskInput] = useState("");
-  const [currentTask, setCurrentTask] = useState(null);
   const [history, setHistory] = useState(loadHistory);
-  const [streaming, setStreaming] = useState(false);
-  const [shadowMode, setShadowMode] = useState(false);
-  const [debugLog, setDebugLog] = useState([]);
-  const [tokenStats, setTokenStats] = useState({
-    currentInput: 0,
-    currentOutput: 0,
-    sessionInput: 0,
-    sessionOutput: 0,
-    tokensPerSecond: 0,
-    estimatedCost: 0,
-    sessionCost: 0,
-    activeAccountId: accStatus.activeId,
-    perAccount: {},
-    rotationMessage: "",
-  });
-  const runnerRef = useRef(null);
-  const isRunningRef = useRef(false);
+  const [chatSessions, setChatSessions] = useState(() => [mkSession("Chat 1")]);
+  const [activeChatId, setActiveChatId] = useState(null);
+
+  const patchSession = useCallback((id, updater) => {
+    setChatSessions(prev => prev.map(s =>
+      s.id === id ? (typeof updater === "function" ? updater(s) : { ...s, ...updater }) : s
+    ));
+  }, []);
+
+  const activeSession = chatSessions.find(s => s.id === activeChatId) || chatSessions[0] || mkSession("Chat 1");
+  const sid = activeSession.id;
+
+  // Derived state — reads active session
+  const taskInput   = activeSession.taskInput;
+  const currentTask = activeSession.currentTask;
+  const streaming   = activeSession.streaming;
+  const shadowMode  = activeSession.shadowMode;
+  const debugLog    = activeSession.debugLog;
+  const tokenStats  = activeSession.tokenStats;
+
+  // Setter shims — each captures the `sid` at the time it is called (render-time)
+  const setTaskInput   = (v) => patchSession(sid, s => ({ taskInput:   typeof v === "function" ? v(s.taskInput)   : v }));
+  const setCurrentTask = (v) => patchSession(sid, s => ({ currentTask: typeof v === "function" ? v(s.currentTask) : v }));
+  const setStreaming    = (v) => patchSession(sid, { streaming: v });
+  const setShadowMode  = (v) => patchSession(sid, { shadowMode: v });
+  const setDebugLog    = (v) => patchSession(sid, s => ({ debugLog:   typeof v === "function" ? v(s.debugLog)   : v }));
+  const setTokenStats  = (v) => patchSession(sid, s => ({ tokenStats: typeof v === "function" ? v(s.tokenStats) : v }));
+
+  const runnerRefs    = useRef({});
+  const isRunningRefs = useRef({});
+  // Per-session ref shims so existing code using runnerRef/isRunningRef works unchanged
+  const runnerRef    = { get current() { return runnerRefs.current[sid];    }, set current(v) { runnerRefs.current[sid] = v;    } };
+  const isRunningRef = { get current() { return !!isRunningRefs.current[sid]; }, set current(v) { isRunningRefs.current[sid] = v; } };
+
+  const addSession = () => {
+    const s = mkSession(`Chat ${chatSessions.length + 1}`);
+    setChatSessions(prev => [...prev, s]);
+    setActiveChatId(s.id);
+  };
+
+  const removeSession = (id) => {
+    const remaining = chatSessions.filter(s => s.id !== id);
+    setChatSessions(remaining.length ? remaining : [mkSession("Chat 1")]);
+    if (activeChatId === id) setActiveChatId(remaining[0]?.id ?? null);
+  };
 
   useEffect(() => { saveHistory(history); }, [history]);
   useEffect(() => {
-    setTokenStats(prev => ({ ...prev, activeAccountId: accStatus.activeId || prev.activeAccountId }));
+    setChatSessions(prev => prev.map(s => ({
+      ...s,
+      tokenStats: { ...s.tokenStats, activeAccountId: accStatus.activeId || s.tokenStats.activeAccountId },
+    })));
   }, [accStatus.activeId]);
 
   const accountOptions = useMemo(() => {
@@ -160,7 +210,7 @@ export default function WayAITab({ manager, accStatus, editorRef, code, lang, pr
 
   const buildRunner = () => new AgentRunner({
     manager,
-    fsApi: { readFile, writeFile, searchFiles },
+    fsApi: { readFile, writeFile, searchFiles, createFile, deleteEntry },
     terminalApi: { run: (root, command, timeoutSecs) => runToolCommand(root || projectRoot || MOCK_ROOT, command.split(" ")[0] || command, command.split(" ").slice(1), timeoutSecs) },
     workspaceRoot: projectRoot || MOCK_ROOT,
     onStep: (event) => {
@@ -296,6 +346,23 @@ export default function WayAITab({ manager, accStatus, editorRef, code, lang, pr
 
   return (
     <div className="wayai-tab">
+      <div className="wayai-chats-bar">
+        {chatSessions.map(s => (
+          <button
+            key={s.id}
+            className={`wayai-chat-tab${s.id === (activeChatId || chatSessions[0]?.id) ? " active" : ""}${s.streaming ? " streaming" : ""}`}
+            onClick={() => setActiveChatId(s.id)}
+            title={s.name}
+          >
+            {s.streaming && <span className="wayai-chat-spin">⟳</span>}
+            <span className="wayai-chat-tab-name">{s.name}</span>
+            {chatSessions.length > 1 && (
+              <span className="wayai-chat-close" onClick={e => { e.stopPropagation(); removeSession(s.id); }}>×</span>
+            )}
+          </button>
+        ))}
+        <button className="wayai-chat-new" onClick={addSession} title="New chat">＋</button>
+      </div>
       <div className="wayai-header">
         <div className="wayai-title">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><polygon points="12 2 22 12 12 22 2 12"/></svg>

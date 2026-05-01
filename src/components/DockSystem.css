@@ -1,0 +1,320 @@
+/* ── Way AI Code — DockSystem.css ── */
+
+/* ── Floating Panel Window ─────────────────────────────────────────────────── */
+.fp-window {
+  position: fixed;
+  display: flex;
+  flex-direction: column;
+  background: #1e1e1e;
+  border: 1px solid rgba(255,255,255,.18);
+  border-radius: 8px;
+  box-shadow: 0 24px 60px rgba(0,0,0,.7), 0 0 0 1px rgba(255,255,255,.05);
+  overflow: hidden;
+  min-width: 280px;
+  min-height: 260px;
+  animation: fpIn .15s ease;
+}
+@keyframes fpIn {
+  from { opacity:0; transform: scale(.97) translateY(-6px); }
+  to   { opacity:1; transform: scale(1)  translateY(0); }
+}
+
+/* resize handles */
+.fp-rz {
+  position: absolute;
+  z-index: 10;
+}
+.fp-rz-n  { top:-4px; left:8px; right:8px; height:8px; cursor:n-resize; }
+.fp-rz-s  { bottom:-4px; left:8px; right:8px; height:8px; cursor:s-resize; }
+.fp-rz-e  { right:-4px; top:8px; bottom:8px; width:8px; cursor:e-resize; }
+.fp-rz-w  { left:-4px; top:8px; bottom:8px; width:8px; cursor:w-resize; }
+.fp-rz-ne { top:-4px; right:-4px; width:14px; height:14px; cursor:ne-resize; }
+.fp-rz-nw { top:-4px; left:-4px; width:14px; height:14px; cursor:nw-resize; }
+.fp-rz-se { bottom:-4px; right:-4px; width:14px; height:14px; cursor:se-resize; }
+.fp-rz-sw { bottom:-4px; left:-4px; width:14px; height:14px; cursor:sw-resize; }
+
+/* header */
+.fp-header {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  height: 36px;
+  min-height: 36px;
+  padding: 0 10px;
+  background: #252526;
+  border-bottom: 1px solid rgba(255,255,255,.08);
+  cursor: grab;
+  user-select: none;
+  flex-shrink: 0;
+}
+.fp-header:active { cursor: grabbing; }
+.fp-icon  { font-size: 14px; flex-shrink: 0; }
+.fp-title { font-size: 12px; font-weight: 700; color: #d4d4d4; flex: 1; letter-spacing: .03em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fp-hd-actions { display: flex; gap: 3px; }
+.fp-btn {
+  width: 22px; height: 22px;
+  display: flex; align-items: center; justify-content: center;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  color: #969696;
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  transition: all .1s;
+}
+.fp-btn:hover { background: rgba(255,255,255,.1); color: #fff; border-color: rgba(255,255,255,.12); }
+.fp-btn.fp-x:hover { background: #e81123; color: #fff; border-color: transparent; }
+
+/* body */
+.fp-body {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── Dock Placeholder ─────────────────────────────────────────────────────── */
+.dp-placeholder {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 24px 16px;
+  color: #555;
+  font-size: 12px;
+  text-align: center;
+}
+.dp-ph-title { color: #666; }
+.dp-ph-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  background: rgba(255,255,255,.06);
+  border: 1px solid rgba(255,255,255,.12);
+  border-radius: 4px;
+  color: #969696;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all .1s;
+}
+.dp-ph-btn:hover { background: rgba(255,255,255,.1); color: #d4d4d4; }
+
+/* ── Panel Header (sidebar section) ──────────────────────────────────────── */
+.dp-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px 4px;
+  flex-shrink: 0;
+}
+.dp-panel-title {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .06em;
+  color: #969696;
+  text-transform: uppercase;
+}
+.dp-panel-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.dp-panel-btn {
+  width: 22px; height: 22px;
+  display: flex; align-items: center; justify-content: center;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  color: #555;
+  cursor: pointer;
+  transition: all .1s;
+}
+.dp-panel-btn:hover { color: #d4d4d4; background: rgba(255,255,255,.07); }
+
+/* ── Extensions Premium Cards ─────────────────────────────────────────────── */
+.ext2-wrap { display: flex; flex-direction: column; height: 100%; overflow: hidden; }
+
+.ext2-search-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px 6px;
+  border-bottom: 1px solid rgba(255,255,255,.06);
+  flex-shrink: 0;
+}
+.ext2-search-inp {
+  flex: 1;
+  background: #2d2d30;
+  border: 1px solid rgba(255,255,255,.08);
+  border-radius: 4px;
+  padding: 5px 8px;
+  color: #d4d4d4;
+  font-size: 12px;
+  outline: none;
+  transition: border-color .12s;
+}
+.ext2-search-inp:focus { border-color: #1177bb; }
+.ext2-search-inp::placeholder { color: #555; }
+
+.ext2-cats {
+  display: flex;
+  gap: 4px;
+  padding: 6px 10px;
+  overflow-x: auto;
+  flex-shrink: 0;
+  border-bottom: 1px solid rgba(255,255,255,.04);
+}
+.ext2-cats::-webkit-scrollbar { height: 3px; }
+.ext2-cat {
+  padding: 3px 9px;
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,.08);
+  background: transparent;
+  color: #969696;
+  font-size: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all .1s;
+}
+.ext2-cat:hover { border-color: rgba(255,255,255,.18); color: #d4d4d4; }
+.ext2-cat.on { border-color: #1177bb; color: #fff; background: rgba(17,119,187,.22); }
+
+.ext2-scroll { flex: 1; overflow-y: auto; padding-bottom: 8px; }
+.ext2-scroll::-webkit-scrollbar { width: 4px; }
+.ext2-scroll::-webkit-scrollbar-thumb { background: #3c3c3c; }
+
+.ext2-section-hd {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 10px 4px;
+}
+.ext2-section-title {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .08em;
+  color: #555;
+  text-transform: uppercase;
+}
+.ext2-update-all {
+  font-size: 10px;
+  color: #1177bb;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 3px;
+}
+.ext2-update-all:hover { background: rgba(17,119,187,.15); }
+
+/* ── Extension Card ─────────────────────────────────────────────────────── */
+.ext2-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 9px 10px;
+  border-bottom: 1px solid rgba(255,255,255,.035);
+  cursor: pointer;
+  transition: background .1s;
+}
+.ext2-card:hover { background: rgba(255,255,255,.03); }
+.ext2-card.selected { background: rgba(17,119,187,.12); border-left: 2px solid #1177bb; }
+
+.ext2-icon {
+  width: 36px; height: 36px;
+  border-radius: 6px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px;
+  font-weight: 900;
+  font-family: 'JetBrains Mono', monospace;
+  flex-shrink: 0;
+  color: #fff;
+  letter-spacing: -.5px;
+}
+
+.ext2-info { flex: 1; min-width: 0; }
+.ext2-name-row { display: flex; align-items: center; gap: 6px; }
+.ext2-name { font-size: 12px; font-weight: 700; color: #d4d4d4; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ext2-version { font-size: 10px; color: #555; font-family: 'JetBrains Mono', monospace; flex-shrink: 0; }
+.ext2-update-badge { font-size: 9px; padding: 1px 5px; background: rgba(245,158,11,.18); border-radius: 8px; color: #f59e0b; font-weight: 700; flex-shrink: 0; }
+.ext2-desc { font-size: 11px; color: #696969; line-height: 1.4; margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ext2-meta { font-size: 10px; color: #444; margin-top: 2px; }
+
+.ext2-actions { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; flex-shrink: 0; }
+
+.ext2-btn {
+  padding: 3px 9px;
+  border-radius: 3px;
+  font-size: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all .1s;
+  border: 1px solid;
+}
+.ext2-btn.install   { color: #1177bb; border-color: #1177bb; background: transparent; }
+.ext2-btn.install:hover { background: rgba(17,119,187,.18); }
+.ext2-btn.uninstall { color: #555;    border-color: rgba(255,255,255,.1); background: transparent; }
+.ext2-btn.uninstall:hover { color: #f44747; border-color: #f44747; }
+.ext2-btn.update    { color: #f59e0b; border-color: #f59e0b; background: transparent; }
+.ext2-btn.update:hover { background: rgba(245,158,11,.18); }
+.ext2-btn.enabled   { color: #4ec9b0; border-color: #4ec9b0; background: rgba(78,201,176,.08); }
+.ext2-btn.disabled  { color: #555;    border-color: rgba(255,255,255,.08); background: transparent; }
+.ext2-btn:disabled  { opacity: .4; cursor: not-allowed; }
+
+.ext2-enabled-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: #4ec9b0;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+.ext2-disabled-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: #444;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+/* Preview pane */
+.ext2-preview {
+  border-top: 1px solid rgba(255,255,255,.06);
+  padding: 12px 10px;
+  background: rgba(255,255,255,.015);
+  flex-shrink: 0;
+}
+.ext2-preview-name { font-size: 14px; font-weight: 700; color: #d4d4d4; margin-bottom: 4px; }
+.ext2-preview-author { font-size: 11px; color: #696969; margin-bottom: 8px; }
+.ext2-preview-desc { font-size: 12px; color: #969696; line-height: 1.5; }
+.ext2-preview-tags { display: flex; gap: 5px; margin-top: 8px; flex-wrap: wrap; }
+.ext2-preview-tag { padding: 2px 7px; border-radius: 8px; border: 1px solid rgba(255,255,255,.08); color: #555; font-size: 10px; }
+.ext2-preview-actions { display: flex; gap: 6px; margin-top: 10px; }
+
+.ext2-empty { padding: 24px 12px; color: #444; font-size: 12px; text-align: center; }
+
+/* ── Way AI Agent floating room ─────────────────────────────────────────── */
+.wayai-room-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 7px 10px;
+  border-bottom: 1px solid rgba(255,255,255,.06);
+  flex-shrink: 0;
+  background: rgba(255,255,255,.015);
+}
+.wayai-room-title { font-size: 12px; font-weight: 700; color: #d4d4d4; }
+.wayai-room-actions { display: flex; gap: 4px; }
+.wayai-room-btn {
+  display: flex; align-items: center; justify-content: center;
+  width: 22px; height: 22px;
+  background: transparent;
+  border: none;
+  border-radius: 3px;
+  color: #555;
+  cursor: pointer;
+}
+.wayai-room-btn:hover { color: #d4d4d4; background: rgba(255,255,255,.07); }

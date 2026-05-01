@@ -46,6 +46,15 @@ const XTERM_THEME = {
 };
 
 const _pty = {};
+
+if (import.meta.hot) {
+  import.meta.hot.dispose(async () => {
+    for (const [id, entry] of Object.entries(_pty)) {
+      try { entry.unlisten?.(); await entry.child?.kill?.(); } catch {}
+    }
+    Object.keys(_pty).forEach(k => delete _pty[k]);
+  });
+}
 const R  = "\x1b[0m";
 const G  = "\x1b[32m";
 const C  = "\x1b[36m";
@@ -339,6 +348,19 @@ export default function TerminalPanel({ onClose, embedded = false, height: contr
   const [profileId, setProfileId]   = useState(SHELLS[0].id);
   const [height, setHeight]         = useState(240);
   const [actionSignal, setActionSignal] = useState({ id: 0, type: "" });
+  const [showPlusMenu, setShowPlusMenu] = useState(false);
+  const [showDotsMenu, setShowDotsMenu] = useState(false);
+  const plusMenuRef  = useRef(null);
+  const dotsMenuRef  = useRef(null);
+
+  useEffect(() => {
+    const handler = (e) => {
+      if (plusMenuRef.current && !plusMenuRef.current.contains(e.target)) setShowPlusMenu(false);
+      if (dotsMenuRef.current && !dotsMenuRef.current.contains(e.target)) setShowDotsMenu(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
 
   const panelHeight   = controlledHeight ?? height;
   const selectedShell = SHELLS.find(s => s.id === profileId) || SHELLS[0];
@@ -421,9 +443,101 @@ export default function TerminalPanel({ onClose, embedded = false, height: contr
         <div className="term-tabbar-actions">
           <div className="term-tabbar-sep" />
 
-          <button className="term-action-btn" title="New Terminal" onClick={() => addTab()}>
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 2a.75.75 0 0 1 .75.75v4.5h4.5a.75.75 0 0 1 0 1.5h-4.5v4.5a.75.75 0 0 1-1.5 0v-4.5h-4.5a.75.75 0 0 1 0-1.5h4.5v-4.5A.75.75 0 0 1 8 2Z"/></svg>
-          </button>
+          {/* ── + dropdown ─────────────────────────────────── */}
+          <div className="term-dropdown-wrap" ref={plusMenuRef}>
+            <div className="term-plus-btn-group">
+              <button
+                className="term-action-btn term-plus-main"
+                title="New Terminal"
+                onClick={() => { addTab(); setShowPlusMenu(false); }}
+              >
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M8 2a.75.75 0 0 1 .75.75v4.5h4.5a.75.75 0 0 1 0 1.5h-4.5v4.5a.75.75 0 0 1-1.5 0v-4.5h-4.5a.75.75 0 0 1 0-1.5h4.5v-4.5A.75.75 0 0 1 8 2Z"/></svg>
+              </button>
+              <button
+                className="term-action-btn term-plus-arrow"
+                title="Launch Profile..."
+                onClick={() => { setShowPlusMenu(v => !v); setShowDotsMenu(false); }}
+              >
+                <svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor"><path d="M4 6l4 4 4-4"/><path d="M4 6l4 4 4-4" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round"/></svg>
+              </button>
+            </div>
+
+            {showPlusMenu && (
+              <div className="term-dropdown term-dropdown-plus">
+                <div className="term-dd-item" onClick={() => { addTab(); setShowPlusMenu(false); }}>
+                  <span className="term-dd-label">New Terminal</span>
+                  <span className="term-dd-shortcut">Ctrl+Shift+`</span>
+                </div>
+                <div className="term-dd-item" onClick={() => { splitTerminal(); setShowPlusMenu(false); }}>
+                  <span className="term-dd-label">Split Terminal</span>
+                  <span className="term-dd-shortcut">Ctrl+Shift+5</span>
+                </div>
+                <div className="term-dd-sep" />
+                {SHELLS.map(sh => (
+                  <div
+                    key={sh.id}
+                    className={`term-dd-item${profileId === sh.id ? " active" : ""}`}
+                    onClick={() => { setProfileId(sh.id); addTab(sh); setShowPlusMenu(false); }}
+                  >
+                    <span className="term-dd-shell-icon">{sh.icon}</span>
+                    <span className="term-dd-label">{sh.label}</span>
+                    {profileId === sh.id && <span className="term-dd-check">✓</span>}
+                  </div>
+                ))}
+                <div className="term-dd-sep" />
+                <div className="term-dd-item" onClick={() => setShowPlusMenu(false)}>
+                  <span className="term-dd-label">Select Default Profile</span>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* ── ... dots menu ─────────────────────────────── */}
+          <div className="term-dropdown-wrap" ref={dotsMenuRef}>
+            <button
+              className="term-action-btn term-dots-btn"
+              title="More Actions..."
+              onClick={() => { setShowDotsMenu(v => !v); setShowPlusMenu(false); }}
+            >
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><circle cx="2" cy="8" r="1.5"/><circle cx="8" cy="8" r="1.5"/><circle cx="14" cy="8" r="1.5"/></svg>
+            </button>
+
+            {showDotsMenu && (
+              <div className="term-dropdown term-dropdown-dots">
+                <div className="term-dd-item" onClick={() => { emitAction("scrollUp"); setShowDotsMenu(false); }}>
+                  <span className="term-dd-label">Scroll to Previous Command</span>
+                  <span className="term-dd-shortcut">Ctrl+↑</span>
+                </div>
+                <div className="term-dd-item" onClick={() => { emitAction("scrollDown"); setShowDotsMenu(false); }}>
+                  <span className="term-dd-label">Scroll to Next Command</span>
+                  <span className="term-dd-shortcut">Ctrl+↓</span>
+                </div>
+                <div className="term-dd-item" onClick={() => { emitAction("clear"); setShowDotsMenu(false); }}>
+                  <span className="term-dd-label">Clear Terminal</span>
+                </div>
+                <div className="term-dd-sep" />
+                <div className="term-dd-item" onClick={() => { emitAction("copy"); setShowDotsMenu(false); }}>
+                  <span className="term-dd-label">Copy Selection</span>
+                </div>
+                <div className="term-dd-item" onClick={() => { emitAction("paste"); setShowDotsMenu(false); }}>
+                  <span className="term-dd-label">Paste</span>
+                </div>
+                <div className="term-dd-sep" />
+                <div className="term-dd-item" onClick={() => { splitTerminal(); setShowDotsMenu(false); }}>
+                  <span className="term-dd-label">Split Terminal</span>
+                  <span className="term-dd-shortcut">Ctrl+Shift+5</span>
+                </div>
+                <div className="term-dd-item danger" onClick={() => { killActive(); setShowDotsMenu(false); }}>
+                  <span className="term-dd-label">Kill Terminal</span>
+                </div>
+                <div className="term-dd-item danger" onClick={() => { killAll(); setShowDotsMenu(false); }}>
+                  <span className="term-dd-label">Kill All Terminals</span>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="term-tabbar-sep" />
 
           <button className="term-action-btn" title="Split Terminal" disabled={!tabs.length} onClick={splitTerminal}>
             <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M2 2h5v12H2V2Zm1 1v10h3V3H3Zm6-1h5v12H9V2Zm1 1v10h3V3h-3Z"/></svg>
@@ -431,10 +545,6 @@ export default function TerminalPanel({ onClose, embedded = false, height: contr
 
           <button className="term-action-btn" title="Kill Terminal" disabled={!tabs.length} onClick={killActive}>
             <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M6.5 1h3a.5.5 0 0 1 .5.5v1H6v-1a.5.5 0 0 1 .5-.5ZM5 2.5v-1A1.5 1.5 0 0 1 6.5 0h3A1.5 1.5 0 0 1 11 1.5v1h2.5a.5.5 0 0 1 0 1H13v9a1.5 1.5 0 0 1-1.5 1.5h-7A1.5 1.5 0 0 1 3 13.5v-9H2.5a.5.5 0 0 1 0-1H5Zm1 1v9h1v-9H6Zm2 0v9h1v-9H8Zm2 0v9h1v-9h-1ZM4 4.5v9a.5.5 0 0 0 .5.5h7a.5.5 0 0 0 .5-.5v-9H4Z"/></svg>
-          </button>
-
-          <button className="term-action-btn" title="Kill All Terminals" disabled={!tabs.length} onClick={killAll}>
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M3 2h10a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1Zm0 1v10h10V3H3Zm2.354 2.646a.5.5 0 1 0-.708.708L7.293 8l-2.647 2.646a.5.5 0 0 0 .708.708L8 8.707l2.646 2.647a.5.5 0 0 0 .708-.708L8.707 8l2.647-2.646a.5.5 0 0 0-.708-.708L8 7.293 5.354 5.646Z"/></svg>
           </button>
 
           {onClose && (

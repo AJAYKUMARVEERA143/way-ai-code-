@@ -229,11 +229,18 @@ fn read_dir(path: String, show_hidden: bool) -> Result<DirResult, String> {
 
 #[command]
 fn read_file(path: String) -> Result<String, String> {
+    let meta = fs::metadata(&path).map_err(|e| format!("Read error: {}", e))?;
+    if meta.len() > 50 * 1024 * 1024 {
+        return Err(format!("File too large to read (max 50 MB)"));
+    }
     fs::read_to_string(&path).map_err(|e| format!("Read error: {}", e))
 }
 
 #[command]
 fn write_file(path: String, content: String) -> Result<(), String> {
+    if content.len() > 50 * 1024 * 1024 {
+        return Err(format!("Content too large to write (max 50 MB)"));
+    }
     if let Some(parent) = Path::new(&path).parent() {
         fs::create_dir_all(parent).map_err(|e| e.to_string())?;
     }
@@ -526,6 +533,26 @@ fn git_push(root: String) -> Result<String, String> {
 }
 
 #[command]
+fn git_push_with_token(root: String, username: String, token: String) -> Result<String, String> {
+    if token.trim().is_empty() || username.trim().is_empty() {
+        return run_git(&root, &["push"]);
+    }
+    let remote_url = run_git(&root, &["remote", "get-url", "origin"])
+        .unwrap_or_default();
+    let remote_url = remote_url.trim();
+    let auth_url = if remote_url.starts_with("https://github.com/") {
+        let rest = &remote_url["https://github.com/".len()..];
+        format!("https://{}:{}@github.com/{}", username.trim(), token.trim(), rest)
+    } else if remote_url.starts_with("https://") {
+        let rest = &remote_url["https://".len()..];
+        format!("https://{}:{}@{}", username.trim(), token.trim(), rest)
+    } else {
+        return run_git(&root, &["push"]);
+    };
+    run_git(&root, &["push", &auth_url])
+}
+
+#[command]
 fn git_pull(root: String) -> Result<String, String> {
     run_git(&root, &["pull", "--ff-only"])
 }
@@ -559,6 +586,7 @@ fn main() {
             git_commit,
             git_push,
             git_pull,
+        git_push_with_token,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
