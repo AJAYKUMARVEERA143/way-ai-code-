@@ -347,6 +347,79 @@ export class AccountManager {
     },signal);
   }
 
+  async testAccount(id) {
+    const account = this._find(id);
+    if (!account) throw new Error("Account not found");
+
+    const provider = PROVIDERS[account.provider] || {};
+    let apiKey = account.apiKey;
+    if (account.provider === "copilot" && !apiKey) {
+      apiKey = await this.getGitHubToken();
+    }
+
+    const fail = (message) => {
+      account.errors = (account.errors || 0) + 1;
+      account._streak = (account._streak || 0) + 1;
+      account.status = LIMIT_PATTERNS.some(p => p.test(message)) ? "limited" : (message.includes("missing") ? "disabled" : "error");
+      this.router.record(account.id, false, 0);
+      this._save();
+      return { ok: false, message };
+    };
+
+    if (!provider.local && !apiKey) {
+      return fail(`${provider.label || account.provider} key is missing`);
+    }
+
+    const started = performance.now();
+    try {
+      if (provider.local) {
+        const pingPath = provider.pingPath || "/models";
+        const url = `${account.baseUrl || provider.baseUrl || ""}${pingPath}`;
+        const res = await fetch(url, { signal: AbortSignal.timeout(5000) });
+        if (!res.ok) throw new Error(`${provider.label} HTTP ${res.status}`);
+      } else if (account.provider === "claude") {
+        const res = await fetch("https://api.anthropic.com/v1/messages", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01" },
+          body: JSON.stringify({ model: account.model || provider.defaultModel || "claude-haiku-4-5", max_tokens: 1, messages: [{ role: "user", content: "ping" }] }),
+          signal: AbortSignal.timeout(10000),
+        });
+        if (!res.ok) throw new Error(`Claude ${res.status}: ${await res.text()}`);
+      } else if (account.provider === "gemini") {
+        const model = account.model || provider.defaultModel || "gemini-2.0-flash";
+        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ contents: [{ parts: [{ text: "ping" }] }] }),
+          signal: AbortSignal.timeout(10000),
+        });
+        if (!res.ok) throw new Error(`Gemini ${res.status}: ${await res.text()}`);
+      } else {
+        const baseUrl = account.baseUrl || provider.baseUrl || "https://api.openai.com/v1";
+        if (String(baseUrl).includes("api.githubcopilot.com") && /^(ghp_|github_pat_)/i.test(String(apiKey || ""))) {
+          throw new Error("GitHub Copilot does not accept PAT tokens. Use GitHub OAuth token.");
+        }
+        const headers = { "Content-Type": "application/json" };
+        if (apiKey) headers.Authorization = `Bearer ${apiKey}`;
+        const res = await fetch(`${baseUrl}/chat/completions`, {
+          method: "POST",
+          headers,
+          body: JSON.stringify({ model: account.model || provider.defaultModel || "gpt-4o-mini", messages: [{ role: "user", content: "ping" }], max_tokens: 1 }),
+          signal: AbortSignal.timeout(10000),
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`);
+      }
+
+      account.status = "active";
+      account._streak = 0;
+      this.router.record(account.id, true, performance.now() - started);
+      this._save();
+      return { ok: true, message: "connection ok" };
+    } catch (err) {
+      return fail(String(err?.message || err));
+    }
+  }
+
   async _streamSSE(res,onToken,extract,signal) {
     const reader=res.body.getReader(),dec=new TextDecoder();let full="";
     while(true){

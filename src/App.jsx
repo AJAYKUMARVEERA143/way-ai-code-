@@ -586,6 +586,7 @@ function AccountsPanel({ manager, status, refresh, routerScores, routerStrategy,
   const [ghShowToken, setGhShowToken] = useState(false);
   const [ghBusy, setGhBusy] = useState(false);
   const [ghError, setGhError] = useState("");
+  const [testingId, setTestingId] = useState(null);
 
   const signInGitHub = async () => {
     if (!ghToken.trim()) { setGhError("Please enter your GitHub Personal Access Token"); return; }
@@ -634,6 +635,21 @@ function AccountsPanel({ manager, status, refresh, routerScores, routerStrategy,
     setForm({ provider:"chatgpt", label:"", apiKey:"", model:"" });
     setShowAdd(false);
     refresh();
+  };
+
+  const runAccountTest = async (event, acc) => {
+    event.stopPropagation();
+    if (!acc?.id || testingId) return;
+    setTestingId(acc.id);
+    try {
+      const result = await manager.testAccount(acc.id);
+      onToast?.({ msg: `${result.ok ? "✓" : "⚠"} ${acc.label}: ${result.message}`, type: result.ok ? "ok" : "warn" });
+    } catch (err) {
+      onToast?.({ msg: `⚠ ${acc.label}: ${String(err?.message || err)}`, type: "warn" });
+    } finally {
+      setTestingId(null);
+      refresh();
+    }
   };
 
   return (
@@ -758,6 +774,7 @@ function AccountsPanel({ manager, status, refresh, routerScores, routerStrategy,
                   <span className="acc-usage">{((acc.tokensIn||0)+(acc.tokensOut||0)).toLocaleString()} tok · {fmtCost(acc.costUsd||0)}</span>
                   <span className="acc-status" style={{color:SC[acc.status]}}>{SL[acc.status]}</span>
                   <div className="acc-actions">
+                    <button className="btn-tiny" title="Test connection" disabled={!!testingId} onClick={e=>runAccountTest(e, acc)}>{testingId===acc.id ? "..." : "Test"}</button>
                     {acc.status!=="active"&&<button className="btn-tiny" title="Reset" onClick={async e=>{e.stopPropagation();await manager.resetAccount(acc.id);refresh();}}><Ic.Ref/></button>}
                     <button className="btn-tiny" title="Edit" onClick={e=>{e.stopPropagation();setEditingId(id=>id===acc.id?null:acc.id);}}><EditIcon/></button>
                     <button className="btn-tiny danger" title="Remove" onClick={async e=>{e.stopPropagation();await manager.remove(acc.id);refresh();}}><Ic.X/></button>
