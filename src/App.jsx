@@ -920,8 +920,10 @@ export default function App() {
   // Layout
   const [activity, setActivity] = useState("files"); // default: show file explorer
   const [sideOpen, setSideOpen] = useState(true);
+  const [secondarySideOpen, setSecondarySideOpen] = useState(false);
   const [panelOpen, setPanelOpen] = useState(true);
   const [panelActive, setPanelActive] = useState("terminal");
+  const [layoutMode, setLayoutMode] = useState("default");
   const [panelHeight, setPanelHeight] = useState(initialSettings.panelHeight || 240);
   const [cmdOpen, setCmdOpen] = useState(false);
   const [workspaceRoot, setWorkspaceRoot] = useState(initialSettings.workspaceRoot || MOCK_ROOT);
@@ -1331,6 +1333,63 @@ export default function App() {
   const switchAct = id => { if(activity===id) setSideOpen(o=>!o); else { setActivity(id); setSideOpen(true); } };
   const openSide = id => { setActivity(id); setSideOpen(true); };
 
+  const applyLayoutMode = useCallback((mode) => {
+    setLayoutMode(mode);
+    if (mode === "default") {
+      setSideOpen(true);
+      setPanelOpen(true);
+      setSecondarySideOpen(false);
+      return;
+    }
+    if (mode === "focus") {
+      setSideOpen(true);
+      setPanelOpen(false);
+      setSecondarySideOpen(true);
+      return;
+    }
+    if (mode === "zen") {
+      setSideOpen(false);
+      setPanelOpen(false);
+      setSecondarySideOpen(false);
+    }
+  }, []);
+
+  const handleTopMenuAction = useCallback((menu) => {
+    switch (menu) {
+      case "File":
+        saveActiveFile();
+        break;
+      case "Edit":
+        formatActiveFile();
+        break;
+      case "Selection":
+        setToast({ msg: "Selection tools ready", type: "info" });
+        setTimeout(() => setToast(null), 1800);
+        break;
+      case "View":
+        openSide("files");
+        break;
+      case "Go":
+        setCmdOpen(true);
+        break;
+      case "Run":
+        openPanel("output");
+        pushOutput("Run action opened Output panel");
+        break;
+      case "Terminal":
+        openPanel("terminal");
+        break;
+      case "Help":
+        setToast({ msg: "Help center coming soon", type: "info" });
+        setTimeout(() => setToast(null), 2000);
+        break;
+      default:
+        break;
+    }
+  }, [formatActiveFile, openPanel, openSide, pushOutput, saveActiveFile]);
+
+  const TOP_MENU_ITEMS = ["File", "Edit", "Selection", "View", "Go", "Run", "Terminal", "Help"];
+
   const commands = [
     { id:"file.save", title:"File: Save", group:"File", detail:"Ctrl+S", run:saveActiveFile },
     { id:"view.explorer", title:"View: Explorer", group:"View", run:()=>openSide("files") },
@@ -1399,43 +1458,6 @@ export default function App() {
       {/* Toast */}
       {toast && <div className={`toast ${toast.type||"info"}`} onClick={()=>setToast(null)}>{toast.msg}</div>}
       <CommandPalette open={cmdOpen} commands={commands} onClose={()=>setCmdOpen(false)}/>
-
-      {/* Title bar */}
-      <div className="titlebar">
-        <div className="tb-left">
-          <span className="app-mark">◈</span>
-          <span className="app-name">Way AI Code</span>
-        </div>
-        <div className="tb-center">
-          <button className="cmd-center" onClick={()=>setCmdOpen(true)}>
-            {activeTab ? tabs.find(t=>t.key===activeTab)?.name || "Command Palette" : "Search commands"}
-            <span>Ctrl+Shift+P</span>
-          </button>
-        </div>
-        <div className="tb-right">
-          <select className="tb-sel" value={lang} onChange={e=>setLang(e.target.value)}>
-            {LANGS.map(l=><option key={l}>{l}</option>)}
-          </select>
-          <select className="tb-sel" value={theme} onChange={e=>setTheme(e.target.value)}>
-            <option value="vs-dark">Dark</option>
-            <option value="vs-light">Light</option>
-            <option value="hc-black">HC Black</option>
-          </select>
-          <select className="tb-sel" value={fontSize} onChange={e=>setFontSize(Number(e.target.value))}>
-            {[12,13,14,15,16,18].map(s=><option key={s} value={s}>{s}px</option>)}
-          </select>
-          <select className="tb-sel" title="AI edit mode" value={aiEditMode} onChange={e=>setAiEditMode(e.target.value)}>
-            <option value="preview">AI Preview</option>
-            <option value="apply">AI Auto Apply</option>
-          </select>
-          <button className={`tb-toggle ${wordWrap==="on"?"on":""}`} onClick={()=>setWordWrap(w=>w==="on"?"off":"on")}>Wrap</button>
-          {accStatus.active && (
-            <div className="tb-acc" style={{color:accentColor}}>
-              {prov?.icon} {accStatus.active.label}
-            </div>
-          )}
-        </div>
-      </div>
 
       {/* Workbench */}
       <div className="workbench">
@@ -1541,6 +1563,47 @@ export default function App() {
             dirtyTabs={dirtyTabs}
             outputLines={outputLines}
           />
+        </div>
+
+        {secondarySideOpen && (
+          <div className="secondary-sidebar">
+            <div className="secondary-titlebar">
+              <span className="side-title">SECONDARY SIDEBAR</span>
+              <button className="icon-btn" onClick={()=>setSecondarySideOpen(false)}><Ic.X/></button>
+            </div>
+            <div className="secondary-body">
+              <div className="secondary-card">
+                <div className="secondary-card-hd">Active File</div>
+                <div className="secondary-card-body">{activeTab || "No file selected"}</div>
+              </div>
+              <div className="secondary-card">
+                <div className="secondary-card-hd">Quick Layout</div>
+                <div className="secondary-card-actions">
+                  <button className="btn-icon-sm" onClick={()=>applyLayoutMode("default")}>Default</button>
+                  <button className="btn-icon-sm" onClick={()=>applyLayoutMode("focus")}>Focus</button>
+                  <button className="btn-icon-sm" onClick={()=>applyLayoutMode("zen")}>Zen</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div className="workbench-menubar">
+        <div className="wb-menu-left">
+          {TOP_MENU_ITEMS.map(item => (
+            <button key={item} className="wb-menu-item" onClick={()=>handleTopMenuAction(item)}>{item}</button>
+          ))}
+        </div>
+        <div className="wb-menu-right">
+          <select className="wb-layout-select" value={layoutMode} onChange={e=>applyLayoutMode(e.target.value)} title="Layout options">
+            <option value="default">Layout Options: Default</option>
+            <option value="focus">Layout Options: Focus</option>
+            <option value="zen">Layout Options: Zen</option>
+          </select>
+          <button className={`wb-toggle-btn ${sideOpen?"on":""}`} onClick={()=>setSideOpen(v=>!v)}>Toggle Primary Sidebar</button>
+          <button className={`wb-toggle-btn ${panelOpen?"on":""}`} onClick={()=>setPanelOpen(v=>!v)}>Toggle Panel</button>
+          <button className={`wb-toggle-btn ${secondarySideOpen?"on":""}`} onClick={()=>setSecondarySideOpen(v=>!v)}>Toggle Secondary Sidebar</button>
         </div>
       </div>
 
