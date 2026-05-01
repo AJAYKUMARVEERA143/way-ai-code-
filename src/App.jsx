@@ -1,6 +1,6 @@
 /**
  * Way AI Code — App.jsx
- * VS Code layout: ActivityBar + Sidebar + Editor Tabs + Terminal + Status Bar
+ * Way AI Code — main layout: ActivityBar + Sidebar + Editor Tabs + Terminal + Status Bar
  * All paths fixed to match actual project structure
  */
 

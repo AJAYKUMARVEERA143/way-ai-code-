@@ -1,6 +1,6 @@
 /**
  * Way AI Code — FileExplorer.jsx
- * VS Code style file explorer — fixed path handling
+ * Way AI Code — file explorer — fixed path handling
  * Auto-opens /way-ai-code (the actual project root)
  */
 

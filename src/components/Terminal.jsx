@@ -1,6 +1,6 @@
 /**
  * Way AI Code - Terminal.jsx
- * VS Code-style terminal surface with profile picker, session list, and Tauri shell spawn.
+ * Integrated terminal panel with profile picker, session list, and Tauri shell spawn.
  */
 
 import { useState, useRef, useEffect, useCallback } from "react";
@@ -151,6 +151,9 @@ function TermInstance({ termId, shell, active }) {
           scrollback: 8000,
           convertEol: true,
           allowProposedApi: true,
+          copyOnSelectionChange: true,
+          rightClickSelectsWord: true,
+          macOptionIsMeta: true,
         });
         const fit = new FitAddon();
         term.loadAddon(fit);
@@ -159,6 +162,50 @@ function TermInstance({ termId, shell, active }) {
         fit.fit();
         xtermRef.current = term;
         fitRef.current = fit;
+
+        // Clipboard: Ctrl+C copies selection, Ctrl+V pastes
+        term.attachCustomKeyEventHandler((e) => {
+          if (e.type !== "keydown") return true;
+          if (e.ctrlKey && e.key === "v") {
+            navigator.clipboard.readText()
+              .then(text => {
+                if (!text) return;
+                if (IS_TAURI) {
+                  writePTY(termId, text);
+                } else {
+                  buf.current += text;
+                  term.write(text);
+                }
+              })
+              .catch(() => {});
+            return false; // suppress default
+          }
+          if (e.ctrlKey && e.key === "c" && term.hasSelection()) {
+            const sel = term.getSelection();
+            if (sel) {
+              navigator.clipboard.writeText(sel).catch(() => {});
+              return false;
+            }
+          }
+          return true;
+        });
+
+        // Right-click context menu
+        containerRef.current.addEventListener("contextmenu", (e) => {
+          e.preventDefault();
+          const sel = term.getSelection();
+          if (sel) {
+            navigator.clipboard.writeText(sel).catch(() => {});
+          } else {
+            navigator.clipboard.readText()
+              .then(text => {
+                if (!text) return;
+                if (IS_TAURI) writePTY(termId, text);
+                else { buf.current += text; term.write(text); }
+              })
+              .catch(() => {});
+          }
+        });
 
         term.writeln(`${C}Way AI Code Terminal${R} ${D}${shell.label}${R}`);
         if (IS_TAURI) {

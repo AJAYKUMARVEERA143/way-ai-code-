@@ -1,7 +1,6 @@
 # ◈ Way AI Code — Complete Setup & Usage Guide
 
-VS Code-style AI code editor with smart multi-account rotation.
-Built with reference from [OpenClaude](https://github.com/Gitlawb/openclaude).
+AI-powered code editor with smart multi-account rotation.
 
 ---
 
@@ -107,7 +106,7 @@ Switch strategy in **Accounts panel** → Router row.
 
 ---
 
-## 💻 VS Code Layout
+## 💻 Editor Layout
 
 | Panel          | Shortcut | What it does |
 |----------------|----------|--------------|
@@ -122,7 +121,7 @@ Switch strategy in **Accounts panel** → Router row.
 
 ## 📝 Editor Features
 
-- **Monaco Editor** — same engine as VS Code
+- **Monaco Editor** — industry-standard code editor engine
 - Multi-tab file editing
 - Syntax highlighting for 13+ languages
 - Bracket pair colorization
@@ -163,9 +162,9 @@ ollama pull deepseek-coder    # great coder
 ```
 way-ai-code/
 ├── src/
-│   ├── App.jsx              ← Main VS Code layout
+│   ├── App.jsx              ← Main app layout
 │   ├── main.jsx             ← React entry point
-│   ├── index.css            ← VS Code dark theme
+│   ├── index.css            ← Dark theme styles
 │   └── lib/
 │       └── AccountManager.js ← Smart rotation engine
 ├── src-tauri/

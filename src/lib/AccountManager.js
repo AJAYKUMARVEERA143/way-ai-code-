@@ -1,7 +1,7 @@
 /**
  * Way AI Code — AccountManager.js
  * Smart multi-account rotation engine
- * Reference: OpenClaude smart_router.py + providerAutoDetect.ts
+ * Multi-provider AI account manager with smart rotation and rate-limit handling.
  */
 
 export const PROVIDERS = {
