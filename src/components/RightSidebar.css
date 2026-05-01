@@ -161,6 +161,12 @@
   color: #fff;
 }
 .rsb-ext-icon img { width: 28px; height: 28px; object-fit: contain; }
+.rsb-ext-fallback {
+  font-size: 14px;
+  font-weight: 700;
+  color: #fff;
+  line-height: 1;
+}
 
 .rsb-ext-info {
   flex: 1;

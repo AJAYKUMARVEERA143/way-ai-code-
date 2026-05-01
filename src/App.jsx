@@ -2391,7 +2391,9 @@ export default function App() {
                         {extInstalled.map(ext => (
                           <button key={ext.id} className="rsb-ext-card" onClick={()=>handleOpenExtension(ext)}>
                             <div className="rsb-ext-icon" style={{ background: `linear-gradient(135deg,${ext.color || "#1177bb"},${ext.color2 || "#23235b"})` }}>
-                              {ext.icon ? <img src={ext.icon} alt="" onError={e=>{ e.target.style.display = "none"; }} /> : <Ic.Ext />}
+                              {ext.icon
+                                ? <img src={ext.icon} alt="" onError={e=>{ e.currentTarget.src = "/brand-logo.svg"; }} />
+                                : <span className="rsb-ext-fallback">{(ext.displayName || ext.name || "E").slice(0, 1).toUpperCase()}</span>}
                             </div>
                             <div className="rsb-ext-info">
                               <span className="rsb-ext-name">{ext.displayName || ext.name || ext.id}</span>

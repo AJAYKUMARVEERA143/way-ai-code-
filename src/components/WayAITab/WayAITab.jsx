@@ -19,7 +19,8 @@ const SENSITIVE_PATTERNS = [
 
 function loadHistory() {
   try {
-    return JSON.parse(localStorage.getItem(HISTORY_KEY) || "[]");
+    const parsed = JSON.parse(localStorage.getItem(HISTORY_KEY) || "[]");
+    return Array.isArray(parsed) ? parsed : [];
   } catch {
     return [];
   }
@@ -122,7 +123,10 @@ function mkSession(name = "Chat 1") {
 }
 
 export default function WayAITab({ manager, accStatus, editorRef, code, lang, projectRoot, activeFile, openFiles }) {
-  const [history, setHistory] = useState(loadHistory);
+  const [history, setHistory] = useState(() => {
+    const initial = loadHistory();
+    return Array.isArray(initial) ? initial : [];
+  });
   const [chatSessions, setChatSessions] = useState(() => [mkSession("Chat 1")]);
   const [activeChatId, setActiveChatId] = useState(null);
 
@@ -327,14 +331,15 @@ export default function WayAITab({ manager, accStatus, editorRef, code, lang, pr
   const localReady = (accStatus.accounts || []).some(account => PROVIDERS[account.provider]?.local && account.status === "active");
   const offline = !cloudReady && localReady;
   const selection = currentSelection(editorRef);
+  const selectionLength = (selection || "").length;
   const taskDNA = useMemo(() => analyzeTaskDNA(taskInput, {
     activeFile,
     openFiles,
     language: lang,
     offlineReady: localReady,
     activeProviderLabel: active?.label,
-    selectionLength: selection.length,
-  }), [taskInput, activeFile, openFiles, lang, localReady, active?.label, selection.length]);
+    selectionLength,
+  }), [taskInput, activeFile, openFiles, lang, localReady, active?.label, selectionLength]);
   const capsules = [
     activeFile ? { label: "File", value: activeFile.split(/[\\/]/).pop() } : null,
     { label: "Lang", value: lang },
@@ -470,7 +475,7 @@ export default function WayAITab({ manager, accStatus, editorRef, code, lang, pr
               <span>ai {currentTask.forecast?.aiCalls || 0}</span>
             </div>
             <div className="wayai-steps">
-              {currentTask.steps.map(step => {
+              {(currentTask.steps || []).map(step => {
                 const icon = step.status === "done" ? "✓" : step.status === "error" ? "✕" : step.status === "running" ? "⟳" : step.status === "stopped" ? "■" : "○";
                 return (
                   <div key={step.id} className={`wayai-step ${step.status}`}>
@@ -509,7 +514,7 @@ export default function WayAITab({ manager, accStatus, editorRef, code, lang, pr
           <button className="btn-tiny" onClick={() => setDebugLog([])} title="Clear debug log">Clear</button>
         </div>
         <div className="wayai-debug-list">
-          {debugLog.length ? debugLog.map(entry => (
+          {(debugLog || []).length ? (debugLog || []).map(entry => (
             <div key={entry.id} className={`wayai-debug-item ${entry.tone}`}>
               <span className="wayai-debug-time">{entry.at}</span>
               <span className="wayai-debug-msg">{entry.message}</span>

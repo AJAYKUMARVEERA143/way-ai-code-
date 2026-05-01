@@ -11,6 +11,7 @@ function timeAgo(ts) {
 
 export default function TaskHistory({ history, onResume, onClear }) {
   const [openId, setOpenId] = useState(null);
+  const list = Array.isArray(history) ? history : [];
 
   return (
     <div className="wayai-history">
@@ -18,7 +19,7 @@ export default function TaskHistory({ history, onResume, onClear }) {
         <span>HISTORY</span>
         <button className="btn-tiny" onClick={onClear} title="Clear history">Clear</button>
       </div>
-      {history.length ? history.map(task => {
+      {list.length ? list.map(task => {
         const isOpen = openId === task.id;
         const icon = task.status === "done" ? "✓" : task.status === "error" ? "✕" : task.status === "stopped" ? "■" : "⟳";
         return (

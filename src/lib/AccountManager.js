@@ -23,6 +23,17 @@ const LIMIT_PATTERNS = [
   /billing/i,/credits?.?exhausted/i,/overloaded/i,/503/,
 ];
 
+const COPILOT_PATTERNS = [
+  /personal access tokens are not supported/i,
+  /third-party user token/i,
+];
+
+const NETWORK_PATTERNS = [
+  /failed to fetch/i,
+  /networkerror/i,
+  /network request failed/i,
+];
+
 import { secureSet, secureGet, secureDel, secureGetAll, migrateFromLocalStorage } from "./secureStorage.js";
 
 const META_KEY = "wayai_accounts_meta_v4";
@@ -208,8 +219,12 @@ export class AccountManager {
       return {result,account};
     } catch(err) {
       if (err?.name === "AbortError") throw err;
-      this._record(account.id,false,performance.now()-t0,err.message);
-      if (LIMIT_PATTERNS.some(p=>p.test(err.message))) {
+      const errMsg = String(err?.message || err || "Unknown error");
+      this._record(account.id,false,performance.now()-t0,errMsg);
+      const shouldRotate =
+        LIMIT_PATTERNS.some(p=>p.test(errMsg)) ||
+        (account.provider === "copilot" && (COPILOT_PATTERNS.some(p => p.test(errMsg)) || NETWORK_PATTERNS.some(p => p.test(errMsg))));
+      if (shouldRotate) {
         const next=this._nextAvailable(account.id);
         if (next) {
           try { const result=await this._dispatch(next,prompt,next.model,onToken,signal); this._record(next.id,true,performance.now()-t0,"",this._usage(next,prompt,result)); return {result,account:next}; }
@@ -221,7 +236,11 @@ export class AccountManager {
   }
 
   async _dispatch(account,prompt,model,onToken,signal) {
-    const {provider,apiKey,baseUrl}=account;
+    const {provider,baseUrl}=account;
+    let apiKey = account.apiKey;
+    if (provider === "copilot" && !apiKey) {
+      apiKey = await this.getGitHubToken();
+    }
     if (provider==="ollama")  return this._ollama(prompt,model,baseUrl||"http://localhost:11434",onToken,signal);
     if (provider==="gemini")  return this._gemini(prompt,model,apiKey,onToken,signal);
     if (provider==="claude")  return this._claude(prompt,model,apiKey,onToken,signal);
@@ -236,10 +255,20 @@ export class AccountManager {
   }
 
   async _oaiCompat(prompt,model,baseUrl,apiKey,onToken,signal) {
+    const isCopilot = String(baseUrl || "").includes("api.githubcopilot.com");
+    if (isCopilot && /^(ghp_|github_pat_)/i.test(String(apiKey || ""))) {
+      throw new Error("GitHub Copilot does not accept Personal Access Tokens. Sign in with a Copilot OAuth token or switch to another active provider.");
+    }
     const headers={"Content-Type":"application/json"};
     if(apiKey) headers["Authorization"]=`Bearer ${apiKey}`;
     const res=await fetch(`${baseUrl}/chat/completions`,{method:"POST",headers,body:JSON.stringify({model,messages:[{role:"user",content:prompt}],stream:!!onToken}),signal});
-    if(!res.ok){const t=await res.text();throw new Error(`HTTP ${res.status}: ${t}`);}
+    if(!res.ok){
+      const t=await res.text();
+      if (isCopilot && COPILOT_PATTERNS.some(p => p.test(t))) {
+        throw new Error("GitHub Copilot in Way AI does not accept PAT tokens for this endpoint. Use a Copilot OAuth token or switch to Claude/Gemini/Ollama.");
+      }
+      throw new Error(`HTTP ${res.status}: ${t}`);
+    }
     if(!onToken){const d=await res.json();return d.choices?.[0]?.message?.content||"";}
     return this._streamSSE(res,onToken,line=>{
       if(!line.startsWith("data: ")) return "";
