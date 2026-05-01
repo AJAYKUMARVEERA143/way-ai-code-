@@ -1,355 +1,307 @@
-/* Way AI Code — terminal panel */
+/* Way AI Code — Terminal panel (VS Code-reference style) */
 
+/* ── Panel shell ────────────────────────────────────────────── */
 .terminal-panel {
   display: flex;
   flex-direction: column;
-  background:
-    radial-gradient(120% 110% at 0% 0%, rgba(74, 125, 255, 0.14), transparent 46%),
-    radial-gradient(120% 110% at 100% 100%, rgba(78, 233, 196, 0.08), transparent 52%),
-    #0f1116;
-  border-top: 1px solid rgba(255,255,255,.08);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.04);
+  background: #1e1e1e;
+  border-top: 1px solid #252526;
   flex-shrink: 0;
   position: relative;
   min-height: 140px;
-  max-height: 640px;
+  max-height: 700px;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
 .terminal-panel.terminal-embedded {
+  border-top: none;
   min-height: 0;
   max-height: none;
   height: 100%;
-  border-top: none;
   flex: 1;
 }
 
+/* ── Resize drag handle ─────────────────────────────────────── */
 .term-drag-handle {
-  height: 4px;
-  width: 100%;
-  cursor: row-resize;
-  flex-shrink: 0;
-  background: transparent;
   position: absolute;
   top: 0;
   left: 0;
-  z-index: 10;
+  width: 100%;
+  height: 4px;
+  cursor: row-resize;
+  background: transparent;
+  z-index: 20;
+  transition: background 0.12s;
 }
+.term-drag-handle:hover { background: rgba(0, 120, 212, 0.6); }
 
-.term-drag-handle:hover { background: rgba(96, 160, 255, .42); }
-
-.term-toolbar {
-  min-height: 46px;
+/* ── Tab bar ────────────────────────────────────────────────── */
+.term-tabbar {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  background: linear-gradient(180deg, rgba(30,34,45,.85), rgba(20,22,30,.9));
-  border-bottom: 1px solid rgba(255,255,255,.08);
-  padding: 6px 10px;
-  margin-top: 4px;
-  user-select: none;
-  backdrop-filter: blur(4px);
-}
-
-.terminal-embedded .term-toolbar { margin-top: 0; }
-
-.term-toolbar-left {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-width: 0;
-}
-
-.term-section-title {
-  height: 28px;
-  display: inline-flex;
-  align-items: center;
-  color: #d7dcf3;
-  border-bottom: 2px solid #5ca4ff;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: .08em;
-}
-
-.term-active-title {
-  min-width: 0;
+  align-items: stretch;
+  height: 35px;
+  min-height: 35px;
+  background: #252526;
+  border-bottom: 1px solid #1e1e1e;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: #9ba7be;
-  font-size: 12px;
-  font-family: var(--mono);
+  user-select: none;
+  padding-top: 4px; /* push down from drag handle */
 }
 
-.term-shortcuts {
+.terminal-embedded .term-tabbar { padding-top: 0; }
+
+.term-panel-label {
   display: inline-flex;
-  gap: 6px;
-  margin-left: 2px;
-}
-
-.term-chip {
-  padding: 2px 8px;
-  border-radius: 999px;
-  background: rgba(255,255,255,.05);
-  border: 1px solid rgba(255,255,255,.08);
-  color: #99a6c7;
-  font-size: 10px;
-  line-height: 1.6;
+  align-items: center;
+  padding: 0 14px;
+  color: #cccccc;
+  font-size: 11px;
+  font-weight: 400;
+  letter-spacing: 0.06em;
+  border-right: 1px solid #3c3c3c;
   white-space: nowrap;
+  flex-shrink: 0;
+  height: 100%;
 }
 
-.term-toolbar-actions {
+/* ── Session tabs (horizontal) ──────────────────────────────── */
+.term-tabs {
   display: flex;
+  flex: 1;
+  align-items: stretch;
+  overflow-x: auto;
+  overflow-y: hidden;
+  min-width: 0;
+  scrollbar-width: thin;
+  scrollbar-color: #424242 transparent;
+}
+
+.term-tabs::-webkit-scrollbar { height: 3px; }
+.term-tabs::-webkit-scrollbar-thumb { background: #424242; border-radius: 2px; }
+
+.term-tab {
+  display: inline-flex;
   align-items: center;
   gap: 5px;
-  flex-shrink: 0;
-}
-
-.term-profile {
-  height: 30px;
-  min-width: 156px;
+  height: 100%;
+  padding: 0 10px;
+  min-width: 100px;
   max-width: 200px;
-  background: #191f2b;
-  border: 1px solid rgba(255,255,255,.12);
-  border-radius: 6px;
-  color: #d7dcef;
-  font-size: 12px;
-  outline: none;
-  padding: 0 8px;
-}
-
-.term-prompt-select {
-  min-width: 132px;
-  max-width: 160px;
-}
-
-.term-icon-btn {
-  min-width: 28px;
-  height: 30px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(255,255,255,.04);
-  border: 1px solid rgba(255,255,255,.08);
-  border-radius: 6px;
-  color: #b6c1dc;
-  cursor: pointer;
-  font-size: 12px;
-  line-height: 1;
-  padding: 0 8px;
-}
-
-.term-icon-btn.soft { font-weight: 600; color: #d3dcf7; }
-
-.term-icon-btn:hover:not(:disabled) {
-  background: rgba(94, 164, 255, .2);
-  border-color: rgba(94, 164, 255, .45);
-  color: #ffffff;
-}
-
-.term-icon-btn:disabled {
-  opacity: .35;
-  cursor: not-allowed;
-}
-
-.term-workspace {
-  flex: 1;
-  min-height: 0;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 6px var(--term-rail-width, 188px);
-  transition: grid-template-columns .2s ease;
-  overflow: hidden;
-}
-
-.term-workspace.sessions-collapsed {
-  grid-template-columns: minmax(0, 1fr) 0 var(--term-rail-width, 42px);
-}
-
-.term-rail-resizer {
-  width: 6px;
-  cursor: col-resize;
-  background: linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.03));
-  border-left: 1px solid rgba(255,255,255,.05);
-  border-right: 1px solid rgba(255,255,255,.05);
-}
-
-.term-rail-resizer:hover {
-  background: linear-gradient(180deg, rgba(92,164,255,.5), rgba(92,164,255,.2));
-}
-
-.term-workspace.sessions-collapsed .term-rail-resizer {
-  width: 0;
-  opacity: 0;
-  pointer-events: none;
-}
-
-.term-body {
-  min-width: 0;
-  min-height: 0;
-  overflow: hidden;
-  position: relative;
-}
-
-.term-session-list {
-  background: linear-gradient(180deg, rgba(18,20,28,.92), rgba(12,14,20,.95));
-  border-left: 1px solid rgba(255,255,255,.08);
-  padding: 5px 4px;
-  overflow-y: auto;
-}
-
-.term-workspace.sessions-collapsed .term-session {
-  justify-content: center;
-  padding: 0 2px;
-}
-
-.term-workspace.sessions-collapsed .term-session-name,
-.term-workspace.sessions-collapsed .term-session-close {
-  display: none;
-}
-
-.term-session-list::-webkit-scrollbar { width: 5px; }
-.term-session-list::-webkit-scrollbar-thumb { background: #38445f; border-radius: 3px; }
-
-.term-session {
-  width: 100%;
-  height: 28px;
-  display: flex;
-  align-items: center;
-  gap: 6px;
   background: transparent;
-  border: 1px solid transparent;
-  border-radius: 6px;
-  color: #95a0bb;
+  border: none;
+  border-top: 1px solid transparent;
+  border-right: 1px solid transparent;
+  border-left: 1px solid transparent;
+  color: #9d9d9d;
+  font-size: 12px;
   cursor: pointer;
-  font-size: 11px;
-  text-align: left;
-  padding: 0 6px;
-}
-
-.term-session:hover {
-  background: rgba(255,255,255,.05);
-  color: #dce3f8;
-}
-
-.term-session.active {
-  background: rgba(92,164,255,.18);
-  border-color: rgba(92,164,255,.38);
-  color: #ffffff;
-}
-
-.term-session-icon {
-  width: 20px;
-  color: #67e8f9;
+  white-space: nowrap;
+  overflow: hidden;
   flex-shrink: 0;
-  font-family: var(--mono);
+  transition: background 0.1s, color 0.1s;
 }
 
-.term-session-name {
+.term-tab:hover:not(.active) {
+  background: #2a2d2e;
+  color: #cccccc;
+}
+
+.term-tab.active {
+  background: #1e1e1e;
+  color: #ffffff;
+  border-top-color: #0078d4;
+  border-right-color: #3c3c3c;
+  border-left-color: #3c3c3c;
+}
+
+.term-tab-icon {
+  font-size: 10px;
+  font-family: "Cascadia Code", Consolas, monospace;
+  color: #4ec9b0;
+  flex-shrink: 0;
+  background: rgba(78, 201, 176, 0.12);
+  border-radius: 3px;
+  padding: 1px 4px;
+  line-height: 1;
+}
+
+.term-tab.active .term-tab-icon { color: #4ec9b0; background: rgba(78, 201, 176, 0.18); }
+
+.term-tab-name {
   flex: 1;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
-.term-session-close {
+.term-tab-close {
   width: 16px;
   height: 16px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: 4px;
-  color: #7f8bb0;
+  border-radius: 3px;
+  font-size: 14px;
+  line-height: 1;
+  color: #9d9d9d;
   opacity: 0;
   flex-shrink: 0;
+  transition: opacity 0.1s, background 0.1s;
 }
 
-.term-session:hover .term-session-close,
-.term-session.active .term-session-close {
+.term-tab:hover .term-tab-close,
+.term-tab.active .term-tab-close {
   opacity: 1;
 }
 
-.term-session-close:hover {
-  background: rgba(255,255,255,.15);
+.term-tab-close:hover {
+  background: rgba(255, 255, 255, 0.12);
   color: #ffffff;
 }
 
-.xterm-container {
-  width: 100%;
-  height: 100%;
-  padding: 10px 8px 8px 12px;
+/* ── Right-side actions ─────────────────────────────────────── */
+.term-tabbar-spacer { flex: 1; min-width: 8px; }
+
+.term-tabbar-actions {
   display: flex;
-  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  padding: 0 6px;
+  flex-shrink: 0;
 }
 
-.xterm-container.is-active {
-  animation: terminalPaneIn .24s ease;
+.term-tabbar-sep {
+  width: 1px;
+  height: 16px;
+  background: #3c3c3c;
+  margin: 0 4px;
+  flex-shrink: 0;
 }
 
-.xterm-container .xterm { width: 100%; height: 100%; }
-.xterm-container .xterm-viewport { background: transparent !important; overflow-y: auto !important; }
-.xterm-container .xterm-viewport::-webkit-scrollbar { width: 6px; }
-.xterm-container .xterm-viewport::-webkit-scrollbar-track { background: transparent; }
-.xterm-container .xterm-viewport::-webkit-scrollbar-thumb { background: #3a4560; border-radius: 4px; }
-.xterm-container .xterm-viewport::-webkit-scrollbar-thumb:hover { background: #4f5e80; }
-.xterm-container .xterm-screen { width: 100% !important; }
+.term-profile-select {
+  height: 22px;
+  background: transparent;
+  border: 1px solid #3c3c3c;
+  border-radius: 3px;
+  color: #cccccc;
+  font-size: 11px;
+  outline: none;
+  padding: 0 6px;
+  cursor: pointer;
+  min-width: 130px;
+}
 
-.xterm-container .xterm-selection div { background: rgba(84, 152, 255, .34) !important; }
-.xterm-container .xterm .xterm-selection-layer { z-index: 1; }
-.xterm-container .xterm .xterm-text-layer { z-index: 2; }
-.xterm-container .xterm .xterm-cursor-layer { z-index: 3; }
+.term-profile-select:hover { border-color: #6c6c6c; background: #2a2d2e; }
+.term-profile-select:focus { border-color: #0078d4; }
 
-.term-empty {
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
+.term-prompt-select { min-width: 96px; }
+
+.term-action-btn {
+  width: 26px;
+  height: 26px;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  color: #9ba8c2;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  color: #cccccc;
+  cursor: pointer;
+  padding: 0;
+  transition: background 0.1s, color 0.1s;
+}
+
+.term-action-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+}
+
+.term-action-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+/* ── Content area ───────────────────────────────────────────── */
+.term-content {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  background: #1e1e1e;
+  overflow: hidden;
+}
+
+/* ── Individual xterm panes ─────────────────────────────────── */
+.term-xterm-pane {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 6px 6px 4px 12px;
+  box-sizing: border-box;
+}
+
+.term-xterm-pane.is-active {
+  animation: termPaneIn 0.15s ease;
+}
+
+.term-xterm-pane .xterm { width: 100%; height: 100%; }
+.term-xterm-pane .xterm-viewport { background: transparent !important; overflow-y: auto !important; }
+.term-xterm-pane .xterm-viewport::-webkit-scrollbar { width: 10px; }
+.term-xterm-pane .xterm-viewport::-webkit-scrollbar-track { background: #1e1e1e; }
+.term-xterm-pane .xterm-viewport::-webkit-scrollbar-thumb { background: #424242; border-radius: 0; }
+.term-xterm-pane .xterm-viewport::-webkit-scrollbar-thumb:hover { background: #5a5a5a; }
+.term-xterm-pane .xterm-screen { width: 100% !important; }
+.term-xterm-pane .xterm-selection div { background: rgba(38, 79, 120, 0.8) !important; }
+
+/* ── Empty state ────────────────────────────────────────────── */
+.term-empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: #6a6a6a;
   font-size: 12px;
 }
+
+.term-create-btn {
+  height: 26px;
+  padding: 0 14px;
+  background: #0078d4;
+  border: none;
+  border-radius: 3px;
+  color: #ffffff;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.term-create-btn:hover { background: #106ebe; }
 
 .term-fallback {
-  height: 100%;
-  padding: 12px;
-  background: #10141b;
-  color: #cbd5eb;
-  font-family: var(--mono);
+  padding: 14px;
+  background: #1e1e1e;
+  color: #cccccc;
+  font-family: "Cascadia Code", Consolas, monospace;
   font-size: 12px;
 }
+.term-fallback span { color: #f14c4c; }
 
-.term-fallback span { color: #ff6f85; }
-
-@keyframes terminalPaneIn {
-  from { opacity: .65; transform: translateY(8px); }
-  to { opacity: 1; transform: translateY(0); }
+/* ── Animation ──────────────────────────────────────────────── */
+@keyframes termPaneIn {
+  from { opacity: 0.6; transform: translateY(4px); }
+  to   { opacity: 1;   transform: translateY(0); }
 }
 
-@media (max-width: 1120px) {
-  .term-profile { min-width: 126px; }
-  .term-prompt-select { min-width: 112px; }
-  .term-shortcuts { display: none; }
+/* ── Responsive ─────────────────────────────────────────────── */
+@media (max-width: 900px) {
+  .term-profile-select { min-width: 108px; }
+  .term-prompt-select  { min-width: 82px; }
+  .term-panel-label    { padding: 0 10px; }
 }
 
-@media (max-width: 760px) {
-  .term-workspace { grid-template-columns: minmax(0, 1fr); }
-  .term-rail-resizer { display: none; }
-  .term-session-list { display: none; }
-  .term-profile { min-width: 108px; max-width: 122px; }
-  .term-prompt-select { min-width: 106px; max-width: 120px; }
-  .term-icon-btn.soft { display: none; }
-  .term-toolbar {
-    padding: 6px 8px;
-    gap: 8px;
-  }
-  .term-toolbar-actions {
-    gap: 4px;
-  }
-  .term-icon-btn {
-    min-width: 26px;
-    height: 28px;
-    font-size: 11px;
-    padding: 0 6px;
-  }
+@media (max-width: 640px) {
+  .term-profile-select, .term-prompt-select { display: none; }
+  .term-tab { min-width: 72px; padding: 0 8px; }
 }
