@@ -6,7 +6,7 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import Editor from "@monaco-editor/react";
-import { AccountManager, PROVIDERS, autoDetect } from "./lib/AccountManager.js";
+import { AccountManager, PROVIDERS, autoDetect, setSecureKey, getSecureKey } from "./lib/AccountManager.js";
 import FileExplorer from "./components/FileExplorer.jsx";
 import "./components/FileExplorer.css";
 import TerminalPanel from "./components/Terminal.jsx";
@@ -188,7 +188,8 @@ function ExtPanel({ workspaceRoot, activeFile, onOpenSide, onOutput }) {
   const [busy, setBusy] = useState("");
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
-  const [githubToken, setGithubToken] = useState(()=>{ try { return localStorage.getItem(GITHUB_TOKEN_KEY) || ""; } catch { return ""; } });
+  const [githubToken, setGithubToken] = useState("");
+  useEffect(() => { getSecureKey("github_token").then(k => { if (k) setGithubToken(k); }); }, []);
   const [githubRepos, setGithubRepos] = useState([]);
   const [cloneTarget, setCloneTarget] = useState(workspaceRoot || MOCK_ROOT);
 
@@ -241,7 +242,7 @@ function ExtPanel({ workspaceRoot, activeFile, onOpenSide, onOutput }) {
   };
 
   const saveGithubToken = () => {
-    try { localStorage.setItem(GITHUB_TOKEN_KEY, githubToken.trim()); } catch {}
+    setSecureKey("github_token", githubToken.trim());
     setNotice("GitHub token saved");
     setTimeout(()=>setNotice(""), 1800);
   };
@@ -858,6 +859,7 @@ export default function App() {
   }));
 
   useEffect(()=>{
+    manager.loadKeys();
     if(manager.getAll().length===0){
       manager.add({provider:"ollama",  label:"Ollama Local",   model:"llama3.2",        apiKey:""});
       manager.add({provider:"chatgpt", label:"GPT Account 1",  model:"gpt-4o-mini",     apiKey:""});

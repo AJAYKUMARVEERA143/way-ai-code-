@@ -38,15 +38,7 @@
   },
   "plugins": {
     "shell": {
-      "open": true,
-      "execute": true,
-      "scope": [
-        { "name": "bash",       "cmd": "bash",           "args": true },
-        { "name": "zsh",        "cmd": "zsh",            "args": true },
-        { "name": "sh",         "cmd": "sh",             "args": true },
-        { "name": "powershell", "cmd": "powershell.exe", "args": true },
-        { "name": "cmd",        "cmd": "cmd.exe",        "args": true }
-      ]
+      "open": true
     }
   }
 }

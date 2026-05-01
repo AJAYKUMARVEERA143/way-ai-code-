@@ -24,8 +24,61 @@ const LIMIT_PATTERNS = [
 ];
 
 const STORAGE_KEY = "wayai_accounts_v3";
-export const loadAccounts    = ()   => { try { return JSON.parse(localStorage.getItem(STORAGE_KEY)||"[]"); } catch { return []; } };
-export const persistAccounts = (a)  => { try { localStorage.setItem(STORAGE_KEY,JSON.stringify(a)); } catch {} };
+const IS_TAURI = typeof window !== "undefined" && ("__TAURI__" in window || "__TAURI_INTERNALS__" in window);
+
+// ── Secure Key Store (API keys never persisted in localStorage) ───────────────
+let _tauriStore = null;
+async function _getTauriStore() {
+  if (_tauriStore) return _tauriStore;
+  const { Store } = await import("@tauri-apps/plugin-store");
+  _tauriStore = await Store.load("wayai_keys.bin", { autoSave: true });
+  return _tauriStore;
+}
+
+export async function setSecureKey(id, value) {
+  try {
+    if (IS_TAURI) {
+      const store = await _getTauriStore();
+      await store.set(id, value);
+      await store.save();
+    } else {
+      sessionStorage.setItem(`wayai_k_${id}`, value);
+    }
+  } catch {}
+}
+
+export async function getSecureKey(id) {
+  try {
+    if (IS_TAURI) {
+      const store = await _getTauriStore();
+      return (await store.get(id)) || "";
+    }
+    return sessionStorage.getItem(`wayai_k_${id}`) || "";
+  } catch { return ""; }
+}
+
+export async function deleteSecureKey(id) {
+  try {
+    if (IS_TAURI) {
+      const store = await _getTauriStore();
+      await store.delete(id);
+      await store.save();
+    } else {
+      sessionStorage.removeItem(`wayai_k_${id}`);
+    }
+  } catch {}
+}
+
+export const loadAccounts    = ()   => {
+  try {
+    // Strip any legacy apiKey data that may have been saved before this fix
+    return JSON.parse(localStorage.getItem(STORAGE_KEY)||"[]").map(({apiKey:_k,...rest})=>rest);
+  } catch { return []; }
+};
+export const persistAccounts = (a)  => {
+  // Always strip apiKey before writing to localStorage
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(a.map(({apiKey:_k,...rest})=>rest))); } catch {}
+};
 export const estimateTokens  = (s="") => Math.max(1, Math.ceil(String(s).length / 4));
 
 // ── Auto-detect ───────────────────────────────────────────────────────────────
@@ -97,10 +150,19 @@ export class AccountManager {
     };
     this.accounts.push(acc);
     if (!this.activeId) this.activeId=acc.id;
+    if (opts.apiKey) setSecureKey(acc.id, opts.apiKey); // async side-effect
     this._save(); return acc;
   }
 
-  remove(id)      { this.accounts=this.accounts.filter(a=>a.id!==id); if(this.activeId===id) this._initActive(); this._save(); }
+  // Restore API keys from secure store into in-memory accounts (call on app start)
+  async loadKeys() {
+    await Promise.all(this.accounts.map(async a => {
+      const key = await getSecureKey(a.id);
+      if (key) a.apiKey = key;
+    }));
+  }
+
+  remove(id)      { deleteSecureKey(id); this.accounts=this.accounts.filter(a=>a.id!==id); if(this.activeId===id) this._initActive(); this._save(); }
   update(id,patch){ const a=this._find(id); if(a){Object.assign(a,patch);this._save();} }
   setActive(id)   { this.activeId=id; this.onChange(this._status()); }
   resetAccount(id){ const a=this._find(id); if(a){a.status="active";a._streak=0;this._save();} }
@@ -226,7 +288,7 @@ export class AccountManager {
   _getActive()               { return this._find(this.activeId)||this.accounts.find(a=>a.status==="active")||null; }
   _find(id)                  { return this.accounts.find(a=>a.id===id); }
   _initActive()              { this.activeId=this.accounts.find(a=>a.status==="active")?.id||null; }
-  _save()                    { persistAccounts(this.accounts);this.onChange(this._status()); }
+  _save()                    { persistAccounts(this.accounts); this.onChange(this._status()); }
   _status()                  { return{accounts:this.accounts,activeId:this.activeId,active:this._getActive()}; }
   getStatus()                { return this._status(); }
   getAll()                   { return this.accounts; }
