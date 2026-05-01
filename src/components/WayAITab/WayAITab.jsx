@@ -163,7 +163,13 @@ export default function WayAITab({ manager, accStatus, editorRef, code, lang, pr
         selectedCode: selection,
       });
     } catch (error) {
-      setCurrentTask(prev => prev ? { ...prev, status: "error", error: String(error?.message || error) } : null);
+      if (String(error?.message || error) === "Task stopped") {
+        setCurrentTask(prev => prev ? { ...prev, status: "stopped", completedAt: Date.now() } : prev);
+        return;
+      }
+      setCurrentTask(prev => prev ? { ...prev, status: "error", error: String(error?.message || error), completedAt: Date.now() } : null);
+    } finally {
+      runnerRef.current = null;
     }
   };
 

@@ -116,10 +116,12 @@ export class AgentRunner {
     this.onComplete = onComplete;
     this.onError = onError;
     this.stopped = false;
+    this.abortController = null;
   }
 
   stop() {
     this.stopped = true;
+    this.abortController?.abort();
   }
 
   async run(taskDescription, context) {
@@ -310,9 +312,13 @@ export class AgentRunner {
     if (this.stopped) throw new Error("Task stopped");
     await this._ensureBestAccount();
     const active = this.manager.getStatus()?.active;
+    const activeAccountId = active?.id || this.manager.getStatus()?.activeId || null;
+    const activeModel = active?.model || counter.currentModel;
+    this.abortController = new AbortController();
     counter.currentModel = active?.model || counter.currentModel;
     try {
       const { result, account } = await this.manager.call(prompt, {
+        signal: this.abortController.signal,
         onToken: (chunk) => {
           counter.addChunk(chunk);
           this.onToken?.({
@@ -321,8 +327,8 @@ export class AgentRunner {
             outputTokens: counter.output,
             totalTokens: counter.total,
             tokensPerSecond: counter.tokensPerSecond,
-            accountId: account?.id || this.manager.getStatus()?.activeId || null,
-            model: account?.model || this.manager.getStatus()?.active?.model || "",
+            accountId: activeAccountId,
+            model: activeModel,
             meta,
           });
         },
@@ -332,10 +338,13 @@ export class AgentRunner {
       const cost = (((counter.inputTokens + counter.output) / 1000) * (provider.costPer1k || 0));
       return { result, account, tokens: counter.total, cost };
     } catch (error) {
+      if (error?.name === "AbortError" || this.stopped) throw new Error("Task stopped");
       if (attempt >= Math.max(2, this.manager.getAll().length)) throw error;
       const nextBefore = this.manager.getStatus()?.active;
       await this._ensureBestAccount({ emit: true, previous: nextBefore });
       return this._aiCall(prompt, counter, meta, attempt + 1);
+    } finally {
+      this.abortController = null;
     }
   }
 
