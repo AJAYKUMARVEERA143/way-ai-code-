@@ -345,9 +345,11 @@ export default function TerminalPanel({ onClose, embedded = false, height: contr
   const [profileId, setProfileId] = useState(SHELLS[0].id);
   const [promptMode, setPromptMode] = useState("modern");
   const [sessionsCollapsed, setSessionsCollapsed] = useState(false);
+  const [railWidth, setRailWidth] = useState(188);
   const [height, setHeight] = useState(220);
   const [actionSignal, setActionSignal] = useState({ id: 0, type: "" });
   const panelHeight = controlledHeight ?? height;
+  const clampedRailWidth = sessionsCollapsed ? 42 : Math.max(120, Math.min(360, railWidth));
   const selectedShell = SHELLS.find(s => s.id === profileId) || SHELLS[0];
   const activeTab = tabs.find(t => t.id === activeId) || tabs[0];
 
@@ -388,6 +390,24 @@ export default function TerminalPanel({ onClose, embedded = false, height: contr
   const toggleSessionsRail = useCallback(() => {
     setSessionsCollapsed(v => !v);
   }, []);
+
+  const startRailDrag = useCallback((e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const sx = e.clientX;
+    const sw = sessionsCollapsed ? 188 : railWidth;
+    if (sessionsCollapsed) setSessionsCollapsed(false);
+    const mv = (ev) => {
+      const next = Math.max(120, Math.min(360, sw + (sx - ev.clientX)));
+      setRailWidth(next);
+    };
+    const up = () => {
+      window.removeEventListener("mousemove", mv);
+      window.removeEventListener("mouseup", up);
+    };
+    window.addEventListener("mousemove", mv);
+    window.addEventListener("mouseup", up);
+  }, [railWidth, sessionsCollapsed]);
 
   const startDrag = useCallback((e) => {
     e.preventDefault();
@@ -438,7 +458,7 @@ export default function TerminalPanel({ onClose, embedded = false, height: contr
           {onClose && <button className="term-icon-btn" title="Close Panel" onClick={onClose}>v</button>}
         </div>
       </div>
-      <div className={`term-workspace ${sessionsCollapsed ? "sessions-collapsed" : ""}`}>
+      <div className={`term-workspace ${sessionsCollapsed ? "sessions-collapsed" : ""}`} style={{ "--term-rail-width": `${clampedRailWidth}px` }}>
         <div className="term-body">
           {tabs.length ? (
             tabs.map(t => <TermInstance key={t.id} termId={t.id} shell={t.shell} active={t.id===activeId} actionSignal={actionSignal} promptMode={promptMode}/>)
@@ -449,6 +469,7 @@ export default function TerminalPanel({ onClose, embedded = false, height: contr
             </div>
           )}
         </div>
+        <div className="term-rail-resizer" onMouseDown={startRailDrag} title="Resize sessions rail"/>
         <div className="term-session-list">
           {tabs.map(t => (
             <button key={t.id} className={`term-session ${t.id===activeId ? "active" : ""}`} onClick={()=>setActiveId(t.id)} title={t.title}>
