@@ -139,7 +139,7 @@ function simCmd(raw, cwd, setCwd) {
   }
 }
 
-function TermInstance({ termId, shell, active, actionSignal, promptMode }) {
+function TermInstance({ termId, shell, active, actionSignal }) {
   const containerRef = useRef(null);
   const xtermRef     = useRef(null);
   const fitRef       = useRef(null);
@@ -150,14 +150,12 @@ function TermInstance({ termId, shell, active, actionSignal, promptMode }) {
   const histIdx      = useRef(-1);
 
   const prompt = useCallback(() => {
-    const marker = promptMode === "classic" ? "$" : "\u276f";
-    xtermRef.current?.write(`\r\n${G}${cwd.current}${R} ${C}${marker}${R} `);
-  }, [promptMode]);
+    xtermRef.current?.write(`\r\n${G}${cwd.current}${R} ${C}>${R} `);
+  }, []);
 
   const writePromptLine = useCallback((text) => {
-    const marker = promptMode === "classic" ? "$" : "\u276f";
-    xtermRef.current?.write(`\r\x1b[K${G}${cwd.current}${R} ${C}${marker}${R} ${text}`);
-  }, [promptMode]);
+    xtermRef.current?.write(`\r\x1b[K${G}${cwd.current}${R} ${C}>${R} ${text}`);
+  }, []);
 
   const pasteFromClipboard = useCallback(async () => {
     try {
@@ -216,11 +214,14 @@ function TermInstance({ termId, shell, active, actionSignal, promptMode }) {
         term.loadAddon(fit);
         term.loadAddon(new WebLinksAddon());
         term.open(containerRef.current);
-        fit.fit();
         xtermRef.current = term;
         fitRef.current   = fit;
 
-        term.clear();
+        // Wait one animation frame so the container has real dimensions before fit + write
+        await new Promise(res => requestAnimationFrame(res));
+        if (disposed) return;
+        fit.fit();
+
         term.writeln(`\x1b[2m# ${shell.label}   Ctrl+Shift+C copy  |  Ctrl+Shift+V paste  |  Ctrl+L clear\x1b[0m`);
 
         term.attachCustomKeyEventHandler((e) => {
@@ -336,7 +337,6 @@ export default function TerminalPanel({ onClose, embedded = false, height: contr
   const [tabs, setTabs]             = useState(() => [{ id: _nid++, shell: SHELLS[0], title: SHELLS[0].label }]);
   const [activeId, setActiveId]     = useState(tabs[0]?.id || null);
   const [profileId, setProfileId]   = useState(SHELLS[0].id);
-  const [promptMode, setPromptMode] = useState("modern");
   const [height, setHeight]         = useState(240);
   const [actionSignal, setActionSignal] = useState({ id: 0, type: "" });
 
@@ -419,15 +419,6 @@ export default function TerminalPanel({ onClose, embedded = false, height: contr
         <div className="term-tabbar-spacer" />
 
         <div className="term-tabbar-actions">
-          <select className="term-profile-select" value={profileId} title="Select shell profile" onChange={e => setProfileId(e.target.value)}>
-            {SHELLS.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
-          </select>
-
-          <select className="term-profile-select term-prompt-select" value={promptMode} title="Prompt style" onChange={e => setPromptMode(e.target.value)}>
-            <option value="modern">&#10095; Prompt</option>
-            <option value="classic">$ Prompt</option>
-          </select>
-
           <div className="term-tabbar-sep" />
 
           <button className="term-action-btn" title="New Terminal" onClick={() => addTab()}>
@@ -466,7 +457,6 @@ export default function TerminalPanel({ onClose, embedded = false, height: contr
               shell={t.shell}
               active={t.id === activeId}
               actionSignal={actionSignal}
-              promptMode={promptMode}
             />
           ))
         ) : (
