@@ -141,7 +141,7 @@ export default function WayAITab({ manager, accStatus, editorRef, code, lang, pr
   const streaming   = activeSession.streaming;
   const shadowMode  = activeSession.shadowMode;
   const debugLog    = activeSession.debugLog;
-  const tokenStats  = activeSession.tokenStats;
+  const tokenStats  = activeSession.tokenStats || { ...DEFAULT_TOKEN_STATS };
 
   // Setter shims — each captures the `sid` at the time it is called (render-time)
   const setTaskInput   = (v) => patchSession(sid, s => ({ taskInput:   typeof v === "function" ? v(s.taskInput)   : v }));

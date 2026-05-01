@@ -2553,9 +2553,9 @@ export default function App() {
             <option value="focus">Layout: Focus</option>
             <option value="zen">Layout: Zen</option>
           </select>
-          <button className={`wb-toggle-btn ${sideOpen ? "on" : ""}`} onClick={()=>setSideOpen(v=>!v)}>Toggle Primary Sidebar</button>
-          <button className={`wb-toggle-btn ${panelOpen ? "on" : ""}`} onClick={()=>setPanelOpen(v=>!v)}>Toggle Panel</button>
-          <button className={`wb-toggle-btn ${secondarySideOpen ? "on" : ""}`} onClick={()=>setSecondarySideOpen(v=>!v)}>Toggle Secondary Sidebar</button>
+          <button className={`wb-toggle-btn ${sideOpen ? "on" : ""}`} onClick={()=>setSideOpen(v=>!v)} title="Toggle Primary Sidebar">◧</button>
+          <button className={`wb-toggle-btn ${panelOpen ? "on" : ""}`} onClick={()=>setPanelOpen(v=>!v)} title="Toggle Panel">▬</button>
+          <button className={`wb-toggle-btn ${secondarySideOpen ? "on" : ""}`} onClick={()=>setSecondarySideOpen(v=>!v)} title="Toggle Secondary Sidebar">◨</button>
         </div>
       </div>
 
