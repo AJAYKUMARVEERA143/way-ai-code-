@@ -170,10 +170,26 @@ export class AccountManager {
       throw new Error(`Failed to save API key: ${err?.message || err}`);
     }
     Object.assign(a, patch);
+    // If credentials were updated, bring the account back to active state.
+    if (patch.apiKey !== undefined) {
+      a._streak = 0;
+      if (patch.apiKey) a.status = "active";
+    }
     this._save();
   }
 
-  setActive(id)    { this.activeId = id; this.onChange(this._status()); }
+  setActive(id)    {
+    const candidate = this._find(id);
+    if (!candidate) return;
+    if (candidate.status !== "active") {
+      const fallback = this.accounts.find(a => a.status === "active");
+      this.activeId = fallback?.id || candidate.id;
+      this.onChange({ ...this._status(), toast: `⚠ ${candidate.label} is ${candidate.status}. Switched to a ready account.`, toastType: "warn" });
+      return;
+    }
+    this.activeId = id;
+    this.onChange(this._status());
+  }
   resetAccount(id) { const a = this._find(id); if (a) { a.status = "active"; a._streak = 0; this._save(); } }
 
   async setGitHubToken(token) {
@@ -210,7 +226,23 @@ export class AccountManager {
 
   async call(prompt,{onToken,model,signal}={}) {
     if (signal?.aborted) throw new DOMException("Request aborted", "AbortError");
-    const account=this._getActive();
+    let account=this._getActive();
+    if (!account) {
+      const ghToken = await this.getGitHubToken();
+      const recoverable = this.accounts.find(a => {
+        const provider = PROVIDERS[a.provider] || {};
+        if (provider.local) return true;
+        if (a.provider === "copilot" && ghToken) return true;
+        return !!a.apiKey;
+      });
+      if (recoverable) {
+        recoverable.status = "active";
+        recoverable._streak = 0;
+        this.activeId = recoverable.id;
+        this._save();
+        account = recoverable;
+      }
+    }
     if (!account) throw new Error("No active accounts. Add accounts in the Accounts panel.");
     const t0=performance.now();
     try {

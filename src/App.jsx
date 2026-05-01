@@ -965,6 +965,11 @@ function ChatPanel({ manager, status, editorRef, lang, code, onProposeEdit }) {
 
   const send = async (prompt, label, options = {}) => {
     if(!prompt||streaming) return;
+    const readyCount = (status.accounts || []).filter(a => a.status === "active").length;
+    if (!readyCount) {
+      setMsgs(p=>[...p,{role:"ai",content:"❌ **Error:** No ready accounts available.\n\nOpen Accounts panel and add/update a valid API key, then click Reset on errored accounts."}]);
+      return;
+    }
     setMsgs(p=>[...p,{role:"user",content:label||prompt.slice(0,120)}]);
     setStr(true); streamRef.current=""; setST("");
     const prov = PROVIDERS[status.active?.provider];
