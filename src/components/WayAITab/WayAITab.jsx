@@ -7,6 +7,15 @@ import TaskHistory from "./TaskHistory.jsx";
 
 const HISTORY_KEY = "wayai_task_history";
 const DEBUG_LOG_LIMIT = 80;
+const SENSITIVE_PATTERNS = [
+  /api[_-]?key\s*[:=]\s*\S+/gi,
+  /token\s*[:=]\s*\S+/gi,
+  /password\s*[:=]\s*\S+/gi,
+  /secret\s*[:=]\s*\S+/gi,
+  /bearer\s+\S+/gi,
+  /sk-[a-zA-Z0-9]{20,}/g,
+  /AIza[a-zA-Z0-9_-]{35}/g,
+];
 
 function loadHistory() {
   try {
@@ -20,6 +29,14 @@ function saveHistory(history) {
   try {
     localStorage.setItem(HISTORY_KEY, JSON.stringify(history.slice(0, 50)));
   } catch {}
+}
+
+function sanitizeForHistory(text) {
+  let safe = String(text || "");
+  for (const pattern of SENSITIVE_PATTERNS) {
+    safe = safe.replace(pattern, "[REDACTED]");
+  }
+  return safe.slice(0, 500);
 }
 
 function currentSelection(editorRef) {
@@ -103,6 +120,7 @@ export default function WayAITab({ manager, accStatus, editorRef, code, lang, pr
     rotationMessage: "",
   });
   const runnerRef = useRef(null);
+  const isRunningRef = useRef(false);
 
   useEffect(() => { saveHistory(history); }, [history]);
   useEffect(() => {
@@ -122,13 +140,15 @@ export default function WayAITab({ manager, accStatus, editorRef, code, lang, pr
   const appendHistory = (task) => {
     const safeTask = {
       ...task,
+      title: sanitizeForHistory(task.title),
+      description: sanitizeForHistory(task.description),
       steps: (task.steps || []).map(step => ({
         id: step.id,
         label: step.label,
         status: step.status,
         tokens: step.tokens,
-        input: step.input,
-        output: step.output,
+        input: sanitizeForHistory(step.input ? JSON.stringify(step.input) : ""),
+        output: "",
       })),
     };
     setHistory(prev => [safeTask, ...prev].slice(0, 50));
@@ -142,6 +162,7 @@ export default function WayAITab({ manager, accStatus, editorRef, code, lang, pr
     manager,
     fsApi: { readFile, writeFile, searchFiles },
     terminalApi: { run: (root, command, timeoutSecs) => runToolCommand(root || projectRoot || MOCK_ROOT, command.split(" ")[0] || command, command.split(" ").slice(1), timeoutSecs) },
+    workspaceRoot: projectRoot || MOCK_ROOT,
     onStep: (event) => {
       if (event.kind === "task_started") {
         setCurrentTask(event.task);
@@ -210,7 +231,8 @@ export default function WayAITab({ manager, accStatus, editorRef, code, lang, pr
   });
 
   const runAgent = async (input = taskInput, options = {}) => {
-    if (!input.trim() || streaming) return;
+    if (!input.trim() || streaming || isRunningRef.current) return;
+    isRunningRef.current = true;
     const selection = currentSelection(editorRef);
     const dryRun = !!options.dryRun;
     setShadowMode(dryRun);
@@ -238,6 +260,7 @@ export default function WayAITab({ manager, accStatus, editorRef, code, lang, pr
       setCurrentTask(prev => prev ? { ...prev, status: "error", error: String(error?.message || error), completedAt: Date.now() } : null);
     } finally {
       runnerRef.current = null;
+      isRunningRef.current = false;
     }
   };
 
@@ -314,8 +337,8 @@ export default function WayAITab({ manager, accStatus, editorRef, code, lang, pr
           onChange={e => setTaskInput(e.target.value)}
         />
         <div className="wayai-btn-row">
-          <button className="btn-primary" disabled={streaming || !taskInput.trim()} onClick={() => runAgent()}>{streaming ? "Running…" : "Run Agent"}</button>
-          <button className={`btn-secondary ${shadowMode ? "on" : ""}`} disabled={streaming || !taskInput.trim()} onClick={() => runAgent(taskInput, { dryRun: true })}>Shadow Run</button>
+          <button className="btn-primary" disabled={streaming || isRunningRef.current || !taskInput.trim()} onClick={() => runAgent()}>{streaming ? "Running…" : "Run Agent"}</button>
+          <button className={`btn-secondary ${shadowMode ? "on" : ""}`} disabled={streaming || isRunningRef.current || !taskInput.trim()} onClick={() => runAgent(taskInput, { dryRun: true })}>Shadow Run</button>
           <button className="btn-secondary" disabled={streaming} onClick={() => { const prompt = quickPrompt("fix", code, lang, currentSelection(editorRef)); setTaskInput(prompt); runAgent(prompt); }}>Quick Fix</button>
           <button className="btn-secondary" disabled={streaming} onClick={() => { const prompt = quickPrompt("explain", code, lang, currentSelection(editorRef)); setTaskInput(prompt); runAgent(prompt); }}>Explain</button>
           <button className="btn-secondary" disabled={!streaming} onClick={stopAgent}>Stop</button>

@@ -160,9 +160,28 @@ function getMockNode(path) {
   return node;
 }
 
-function normPath(p) {
-  // Normalize Windows backslashes and trailing slashes
-  return p?.replace(/\\/g, "/").replace(/\/+$/, "") || MOCK_ROOT;
+export function normPath(p) {
+  if (!p) return MOCK_ROOT;
+  let normalized = String(p).replace(/\\/g, "/").replace(/\/+$/, "");
+  const driveMatch = normalized.match(/^[A-Za-z]:/);
+  const drivePrefix = driveMatch ? driveMatch[0] : "";
+  if (drivePrefix) normalized = normalized.slice(drivePrefix.length);
+  const isAbs = normalized.startsWith("/") || !!drivePrefix;
+  const parts = normalized.split("/");
+  const resolved = [];
+  for (const part of parts) {
+    if (!part || part === ".") continue;
+    if (part === "..") {
+      if (resolved.length && resolved[resolved.length - 1] !== "..") resolved.pop();
+      continue;
+    }
+    resolved.push(part);
+  }
+  const body = resolved.join("/");
+  const joined = drivePrefix
+    ? `${drivePrefix}/${body}`.replace(/\/+$/, "")
+    : (isAbs ? "/" : "") + body;
+  return joined || "/";
 }
 
 async function mockInvoke(cmd, args) {

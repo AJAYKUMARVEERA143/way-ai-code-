@@ -9,7 +9,7 @@ import {
   IS_TAURI, readDir, readFile, createFile, deleteEntry,
   renamePath, createDir, getHomeDir, searchFiles, openFolderDialog,
   formatSize, pathJoin, pathDir, pathName, pathExt,
-  langFromPath, langColor, MOCK_ROOT,
+  langFromPath, langColor, MOCK_ROOT, normPath,
 } from "../lib/fs.js";
 
 const WORKSPACE_STORAGE_KEY = "wayai_workspace_root_v1";
@@ -20,6 +20,14 @@ function loadWorkspaceRoot() {
 
 function saveWorkspaceRoot(path) {
   try { localStorage.setItem(WORKSPACE_STORAGE_KEY, path); } catch {}
+}
+
+function assertInWorkspace(path, root) {
+  const norm = normPath(path);
+  const normRoot = normPath(root);
+  if (!norm.startsWith(`${normRoot}/`) && norm !== normRoot) {
+    throw new Error(`Operation blocked: path "${path}" is outside workspace`);
+  }
 }
 
 // ── Icons ─────────────────────────────────────────────────────────────────────
@@ -150,6 +158,7 @@ export default function FileExplorer({ onOpenFile, activeFile, onRootChange }) {
   const [searchRes,setSearchRes]  = useState(null);
   const [searchLoading,setSL]     = useState(false);
   const [error,   setError]       = useState(null);
+  const searchTimerRef = useRef(null);
 
   // Load a directory
   const loadDir = useCallback(async (path) => {
@@ -236,6 +245,7 @@ export default function FileExplorer({ onOpenFile, activeFile, onRootChange }) {
         break;
       case "delete":
         if (confirm(`Delete "${entry.name}"?`)) {
+          assertInWorkspace(entry.path, rootPath || parentPath);
           await deleteEntry(entry.path);
           await loadDir(pathDir(entry.path));
         }
@@ -247,7 +257,7 @@ export default function FileExplorer({ onOpenFile, activeFile, onRootChange }) {
         navigator.clipboard?.writeText(entry.name);
         break;
     }
-  }, [tree, loadDir]);
+  }, [tree, loadDir, rootPath]);
 
   // Rename confirm
   const handleRename = useCallback(async (entry, newName) => {
@@ -255,16 +265,19 @@ export default function FileExplorer({ onOpenFile, activeFile, onRootChange }) {
     if (!entry || !newName || newName === entry.name) return;
     const newPath = pathJoin(pathDir(entry.path), newName);
     try {
+      assertInWorkspace(entry.path, rootPath || pathDir(entry.path));
+      assertInWorkspace(newPath, rootPath || pathDir(entry.path));
       await renamePath(entry.path, newPath);
       await loadDir(pathDir(entry.path));
     } catch(e) { setError(String(e)); }
-  }, [loadDir]);
+  }, [loadDir, rootPath]);
 
   // Create confirm
   const handleCreate = useCallback(async (name) => {
     if (!creating || !name) { setCreating(null); return; }
     const newPath = pathJoin(creating.parentPath, name);
     try {
+      assertInWorkspace(newPath, rootPath || creating.parentPath);
       if (creating.type === "file") {
         await createFile(newPath);
         await loadDir(creating.parentPath);
@@ -276,18 +289,23 @@ export default function FileExplorer({ onOpenFile, activeFile, onRootChange }) {
       }
     } catch(e) { setError(String(e)); }
     setCreating(null);
-  }, [creating, loadDir, onOpenFile]);
+  }, [creating, loadDir, onOpenFile, rootPath]);
 
   // Search
-  const handleSearch = useCallback(async (q) => {
+  const handleSearchChange = useCallback((q) => {
     setSearchQ(q);
+    clearTimeout(searchTimerRef.current);
     if (!q.trim() || !rootPath) { setSearchRes(null); return; }
-    setSL(true);
-    try {
-      const results = await searchFiles(rootPath, q.trim(), 60);
-      setSearchRes(results);
-    } finally { setSL(false); }
+    searchTimerRef.current = setTimeout(async () => {
+      setSL(true);
+      try {
+        const results = await searchFiles(rootPath, q.trim(), 60);
+        setSearchRes(results);
+      } finally { setSL(false); }
+    }, 300);
   }, [rootPath]);
+
+  useEffect(() => () => clearTimeout(searchTimerRef.current), []);
 
   const refresh = useCallback(async () => {
     if (!rootPath) return;
@@ -348,7 +366,7 @@ export default function FileExplorer({ onOpenFile, activeFile, onRootChange }) {
       <div className="fe-search-bar">
         <span className="fe-search-icon"><SrchIc/></span>
         <input className="fe-search-inp" placeholder="Search files…" value={searchQ}
-          onChange={e=>handleSearch(e.target.value)}/>
+          onChange={e=>handleSearchChange(e.target.value)}/>
         {searchQ && <button className="fe-search-clear" onClick={()=>{setSearchQ("");setSearchRes(null);}}>×</button>}
       </div>
 

@@ -1,5 +1,43 @@
 import { PROVIDERS } from "../../lib/AccountManager.js";
 
+// ── Input sanitization ─────────────────────────────────────────────────────
+const MAX_TASK_LENGTH = 2000;
+const MAX_FILE_SIZE = 1_000_000;
+const MAX_DIFF_LINES = 200;
+
+const INJECTION_PATTERNS = [
+  /ignore (previous|above|all) instructions/i,
+  /you are now/i,
+  /new persona/i,
+  /system prompt/i,
+  /\bsudo\b/i,
+  /curl\s+https?:\/\//i,
+  /wget\s+https?:\/\//i,
+  /base64\s*-d/i,
+  /\/etc\/shadow/i,
+  /\/etc\/passwd/i,
+  /rm\s+-rf/i,
+  /(;|\|{1,2}|&&)\s*(curl|wget|nc|bash|sh|python|node)/i,
+];
+
+const ALLOWED_STEP_TYPES = new Set(["read_file", "write_file", "search_files", "ai_call", "run_command", "search"]);
+
+// ── Command whitelist ──────────────────────────────────────────────────────
+const ALLOWED_COMMANDS = {
+  git: ["status", "log", "diff", "add", "commit", "push", "pull", "branch", "checkout", "clone", "fetch", "stash", "reset", "restore"],
+  npm: ["install", "run", "test", "build", "audit", "ci", "ls"],
+  node: ["-e", "-v", "--version", "-p"],
+  cargo: ["build", "test", "check", "run", "fmt", "clippy"],
+  python: ["-m", "-c", "--version", "-V"],
+  python3: ["--version", "-V", "-m", "-c"],
+};
+
+const ALWAYS_BLOCKED = [
+  /\$\(/, /`/, /&&/, /\|\|/, />>?/, /<</, /;/,
+  /\/dev\//, /\/proc\//, /\/sys\//,
+  /curl|wget|nc\b|ncat|socat|ssh|scp|sftp/i,
+];
+
 const PLANNER_SYSTEM = `You are Way AI, an expert coding agent.
 Given a task description and project context, output a JSON plan.
 Output ONLY valid JSON. No markdown, no explanation.
@@ -16,21 +54,53 @@ Format:
 
 Step types: read_file, write_file, search_files, ai_call, run_command`;
 
-const BLOCKED_COMMAND_PATTERNS = [
-  /(^|\s)rm\s+-rf(\s|$)/i,
-  /(^|\s)del\s+\/f/i,
-  /(^|\s)format\s+[a-z]:/i,
-  /git\s+reset\s+--hard/i,
-  /git\s+clean\s+-fd/i,
-  /(^|\s)shutdown(\s|$)/i,
-  /(^|\s)reboot(\s|$)/i,
-  /(^|\s)mkfs(\s|$)/i,
-];
+function sanitizeTaskInput(input) {
+  if (typeof input !== "string") throw new Error("Task must be a string.");
+  const trimmed = input.trim();
+  if (trimmed.length === 0) throw new Error("Task description cannot be empty.");
+  if (trimmed.length > MAX_TASK_LENGTH) throw new Error(`Task too long (max ${MAX_TASK_LENGTH} chars).`);
+  for (const pattern of INJECTION_PATTERNS) {
+    if (pattern.test(trimmed)) throw new Error("Task description contains disallowed content.");
+  }
+  return trimmed.replace(/`/g, "'").replace(/\$\{/g, "$(");
+}
 
 function extractJson(text = "") {
-  const trimmed = String(text).trim();
-  const fenced = trimmed.match(/```(?:json)?\n([\s\S]*?)```/i);
-  return fenced ? fenced[1].trim() : trimmed;
+  const source = String(text || "");
+  const fenceMatch = source.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  if (fenceMatch) {
+    try { return JSON.parse(fenceMatch[1].trim()); } catch {}
+  }
+  const objMatch = source.match(/\{[\s\S]*\}/);
+  if (objMatch) {
+    try { return JSON.parse(objMatch[0]); } catch {}
+  }
+  try { return JSON.parse(source.trim()); } catch {}
+  throw new Error(`Agent did not return valid JSON. Raw response: ${source.slice(0, 200)}`);
+}
+
+function validatePlan(plan) {
+  if (!plan || typeof plan !== "object") throw new Error("Agent returned invalid plan.");
+  if (typeof plan.title !== "string" || plan.title.length > 200) throw new Error("Invalid plan title.");
+  if (!Array.isArray(plan.steps) || plan.steps.length === 0) throw new Error("Plan has no steps.");
+  if (plan.steps.length > 20) throw new Error("Plan too many steps (max 20).");
+  for (const step of plan.steps) {
+    if (!ALLOWED_STEP_TYPES.has(step.type)) throw new Error(`Unknown step type: ${step.type}`);
+    if ((step.type === "read_file" || step.type === "write_file") && typeof step.path !== "string") {
+      throw new Error("Step missing path.");
+    }
+  }
+  return plan;
+}
+
+function assertWithinWorkspace(filePath, workspaceRoot) {
+  if (!workspaceRoot) return;
+  const normalize = (p) => String(p || "").replace(/\\/g, "/").replace(/\/+$/g, "");
+  const norm = normalize(filePath);
+  const root = normalize(workspaceRoot);
+  if (!norm.startsWith(`${root}/`) && norm !== root) {
+    throw new Error(`Access denied: "${filePath}" is outside workspace "${workspaceRoot}"`);
+  }
 }
 
 function extractFirstCodeBlock(content = "") {
@@ -118,10 +188,11 @@ export class StreamingTokenCounter {
 }
 
 export class AgentRunner {
-  constructor({ manager, fsApi, terminalApi, onStep, onToken, onComplete, onError }) {
+  constructor({ manager, fsApi, terminalApi, workspaceRoot, onStep, onToken, onComplete, onError }) {
     this.manager = manager;
     this.fsApi = fsApi;
     this.terminalApi = terminalApi;
+    this.workspaceRoot = workspaceRoot || "";
     this.onStep = onStep;
     this.onToken = onToken;
     this.onComplete = onComplete;
@@ -137,11 +208,12 @@ export class AgentRunner {
 
   async run(taskDescription, context) {
     this.stopped = false;
-    const plan = await this._plan(taskDescription, context);
+    const safeTask = sanitizeTaskInput(taskDescription);
+    const plan = await this._plan(safeTask, context);
     const task = {
       id: `task_${Date.now()}`,
-      title: plan.title || shortText(taskDescription, 60),
-      description: taskDescription,
+      title: plan.title || shortText(safeTask, 60),
+      description: safeTask,
       status: "running",
       steps: plan.steps.map((step, index) => ({
         id: `step_${index}_${Date.now()}`,
@@ -225,9 +297,8 @@ export class AgentRunner {
     counter.start(roughTokenCountEstimation(prompt));
     try {
       const response = await this._aiCall(prompt, counter, { label: "Planning task", systemPrompt: PLANNER_SYSTEM });
-      const parsed = JSON.parse(extractJson(response.result));
-      if (!Array.isArray(parsed.steps) || !parsed.steps.length) throw new Error("Planner returned no steps");
-      return parsed;
+      const parsed = extractJson(response.result);
+      return validatePlan(parsed);
     } catch {
       const activeFile = context.activeFile;
       const fallbackSteps = [];
@@ -237,7 +308,7 @@ export class AgentRunner {
       if (/fix|update|write|change|refactor|add|implement/i.test(taskDescription) && activeFile) {
         fallbackSteps.push({ type: "write_file", path: activeFile, goal: taskDescription });
       }
-      return { title: shortText(taskDescription, 60), steps: fallbackSteps };
+      return validatePlan({ title: shortText(taskDescription, 60), steps: fallbackSteps });
     }
   }
 
@@ -260,6 +331,7 @@ export class AgentRunner {
   }
 
   async _readFileStep(step, memory) {
+    assertWithinWorkspace(step.path, this.workspaceRoot || memory.context?.projectRoot);
     const content = await this.fsApi.readFile(step.path);
     memory.fileContents[step.path] = content;
     return {
@@ -270,8 +342,12 @@ export class AgentRunner {
   }
 
   async _writeFileStep(step, memory) {
+    assertWithinWorkspace(step.path, this.workspaceRoot || memory.context?.projectRoot);
     const nextContent = step.content || extractFirstCodeBlock(memory.lastAiResponse);
     if (!nextContent) throw new Error(`No generated content available for ${step.path}`);
+    if (nextContent.length > MAX_FILE_SIZE) {
+      throw new Error(`File too large: ${nextContent.length} chars exceeds limit of ${MAX_FILE_SIZE}`);
+    }
     const previous = memory.fileContents[step.path] || "";
     if (!memory.context?.dryRun) {
       await this.fsApi.writeFile(step.path, nextContent);
@@ -440,7 +516,10 @@ export class AgentRunner {
       if (oldLines[index] === newLines[index]) continue;
       if (oldLines[index] != null) lines.push(`-${oldLines[index]}`);
       if (newLines[index] != null) lines.push(`+${newLines[index]}`);
-      if (lines.length > 30) break;
+      if (lines.length > MAX_DIFF_LINES) {
+        lines.push(`... (${Math.max(0, max - index - 1)} more lines — accept to see full change)`);
+        break;
+      }
     }
     return lines.join("\n");
   }
@@ -448,8 +527,16 @@ export class AgentRunner {
   _validateCommand(command) {
     const text = String(command || "").trim();
     if (!text) throw new Error("Command step missing command text");
-    const blocked = BLOCKED_COMMAND_PATTERNS.find(pattern => pattern.test(text));
-    if (blocked) throw new Error(`Blocked unsafe command: ${text}`);
+    for (const pattern of ALWAYS_BLOCKED) {
+      if (pattern.test(text)) throw new Error(`Blocked shell pattern in command: ${text}`);
+    }
+    const parts = text.split(/\s+/).filter(Boolean);
+    const cmd = parts[0];
+    const args = parts.slice(1);
+    const allowed = ALLOWED_COMMANDS[cmd];
+    if (!allowed) throw new Error(`Command not allowed: ${cmd}. Allowed: ${Object.keys(ALLOWED_COMMANDS).join(", ")}`);
+    const sub = args[0];
+    if (sub && !allowed.includes(sub)) throw new Error(`Subcommand not allowed: ${cmd} ${sub}`);
   }
 
   _sanitizeStepInput(step) {

@@ -41,13 +41,23 @@ const RE = "\x1b[31m";
 const D = "\x1b[2m";
 const SIM_CWD_INIT = "~/way-ai-code";
 
+function stripDangerousEscapes(data) {
+  return String(data || "")
+    .replace(/\x1b\][^\x07\x1b]*(\x07|\x1b\\)/g, "")
+    .replace(/\x1b[P_X^][^\x1b]*\x1b\\/g, "")
+    .replace(/\x1b[^a-zA-Z\[\]()#;?]*[a-zA-Z]/g, (m) => {
+      const safe = /\x1b(\[[\d;]*[A-HJKSTfmsu]|[ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz])/;
+      return safe.test(m) ? m : "";
+    });
+}
+
 async function spawnPTY(id, shell, onData, onExit) {
   if (!IS_TAURI) return null;
   try {
     const { Command } = await import("@tauri-apps/plugin-shell");
     const child = await Command.create(shell.command, shell.args, { encoding:"utf-8" }).spawn();
-    child.stdout.on("data", d => onData(d));
-    child.stderr.on("data", d => onData(`\x1b[31m${d}\x1b[0m`));
+    child.stdout.on("data", d => onData(stripDangerousEscapes(d)));
+    child.stderr.on("data", d => onData(stripDangerousEscapes(d)));
     child.on("close", ({ code }) => {
       onData(`\r\n\x1b[33mProcess exited (${code ?? "unknown"})\x1b[0m\r\n`);
       onExit(code);
@@ -209,7 +219,7 @@ function TermInstance({ termId, shell, active }) {
 
         term.writeln(`${C}Way AI Code Terminal${R} ${D}${shell.label}${R}`);
         if (IS_TAURI) {
-          await spawnPTY(termId, shell, d => term.write(d), () => {});
+          await spawnPTY(termId, shell, d => { term.write(d); term.scrollToBottom(); }, () => {});
           term.onData(d => writePTY(termId, d));
         } else {
           term.writeln(`${D}Browser simulation. Type help for commands.${R}`);
@@ -251,6 +261,7 @@ function TermInstance({ termId, shell, active }) {
             } else if (domEvent.ctrlKey && k.toLowerCase() === "c") {
               term.write("^C");
               buf.current = "";
+              histIdx.current = -1;
               prompt();
             } else if (domEvent.ctrlKey && k.toLowerCase() === "l") {
               term.clear();

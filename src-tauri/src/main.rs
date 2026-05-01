@@ -12,6 +12,7 @@ use std::process::{Command, Stdio};
 use std::thread;
 use std::time::{Duration, Instant};
 use tauri::command;
+use tokio::process::Command as TokioCommand;
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -43,6 +44,7 @@ pub struct GitStatus {
     pub staged:   Vec<GitFile>,
     pub unstaged: Vec<GitFile>,
     pub untracked: Vec<GitFile>,
+    pub conflicts: Vec<GitFile>,
     pub clean:    bool,
     pub raw:      String,
 }
@@ -369,12 +371,30 @@ fn package_scripts(root: String) -> Result<Vec<PackageScript>, String> {
 }
 
 #[command]
-fn run_tool_command(root: String, tool: String, args: Vec<String>, timeout_secs: u64) -> Result<CommandOutput, String> {
+async fn run_tool_command(root: String, tool: String, args: Vec<String>, timeout_secs: u64) -> Result<CommandOutput, String> {
     let allowed = ["npm", "node", "python", "py", "python3", "git", "cargo"];
     if !allowed.contains(&tool.as_str()) {
         return Err(format!("Tool not allowed: {}", tool));
     }
-    run_command_in_dir(&root, &tool, &args, timeout_secs)
+
+    let command_path = which_command(&tool).unwrap_or(tool.clone());
+    let mut cmd = TokioCommand::new(command_path);
+    cmd.current_dir(root)
+        .args(&args)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+
+    let output = tokio::time::timeout(Duration::from_secs(timeout_secs.max(5)), cmd.output())
+        .await
+        .map_err(|_| format!("Command timed out after {}s", timeout_secs))?
+        .map_err(|e| format!("Failed to run {}: {}", tool, e))?;
+
+    Ok(CommandOutput {
+        success: output.status.success(),
+        code: output.status.code().unwrap_or(-1),
+        stdout: String::from_utf8_lossy(&output.stdout).trim_end().to_string(),
+        stderr: String::from_utf8_lossy(&output.stderr).trim_end().to_string(),
+    })
 }
 
 #[command]
@@ -382,11 +402,25 @@ fn git_clone(parent_dir: String, repo_url: String) -> Result<CommandOutput, Stri
     if repo_url.trim().is_empty() {
         return Err("Repository URL is required".to_string());
     }
+    if !repo_url.starts_with("https://") {
+        return Err("Only HTTPS git URLs are allowed".to_string());
+    }
+    let blocked = ["localhost", "127.0.0.1", "0.0.0.0", "::1", "file://", "git://"];
+    for marker in blocked {
+        if repo_url.contains(marker) {
+            return Err(format!("Repository URL contains blocked pattern: {}", marker));
+        }
+    }
     let parent = PathBuf::from(&parent_dir);
     if !parent.exists() || !parent.is_dir() {
         return Err(format!("Clone target folder not found: {}", parent_dir));
     }
-    run_command_in_dir(&parent_dir, "git", &["clone".to_string(), repo_url], 120)
+    run_command_in_dir(
+        &parent_dir,
+        "git",
+        &["clone".to_string(), "--depth".to_string(), "1".to_string(), repo_url],
+        120,
+    )
 }
 
 fn run_git(root: &str, args: &[&str]) -> Result<String, String> {
@@ -411,6 +445,7 @@ fn parse_git_status(raw: &str) -> GitStatus {
     let mut staged = Vec::new();
     let mut unstaged = Vec::new();
     let mut untracked = Vec::new();
+    let mut conflicts = Vec::new();
 
     for line in raw.lines() {
         if let Some(rest) = line.strip_prefix("## ") {
@@ -436,6 +471,13 @@ fn parse_git_status(raw: &str) -> GitStatus {
             untracked.push(GitFile { path, status: "U".to_string() });
             continue;
         }
+
+        let conflict_pair = format!("{}{}", index, worktree);
+        if ["UU", "AA", "DD", "DU", "UD", "UA", "AU"].contains(&conflict_pair.as_str()) {
+            conflicts.push(GitFile { path, status: conflict_pair });
+            continue;
+        }
+
         if index != ' ' {
             staged.push(GitFile { path: path.clone(), status: index.to_string() });
         }
@@ -444,8 +486,8 @@ fn parse_git_status(raw: &str) -> GitStatus {
         }
     }
 
-    let clean = staged.is_empty() && unstaged.is_empty() && untracked.is_empty();
-    GitStatus { branch, staged, unstaged, untracked, clean, raw: raw.to_string() }
+    let clean = staged.is_empty() && unstaged.is_empty() && untracked.is_empty() && conflicts.is_empty();
+    GitStatus { branch, staged, unstaged, untracked, conflicts, clean, raw: raw.to_string() }
 }
 
 #[command]

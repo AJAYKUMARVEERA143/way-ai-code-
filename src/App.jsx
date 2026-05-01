@@ -171,8 +171,6 @@ function isExtensionEnabled(id) {
   return (state.installed ?? base?.installed) && (state.enabled ?? base?.enabled);
 }
 
-const GITHUB_TOKEN_KEY = "wayai_github_token_v1";
-
 function formatToolOutput(out) {
   if (!out) return "";
   const parts = [];
@@ -191,7 +189,11 @@ function ExtPanel({ workspaceRoot, activeFile, onOpenSide, onOutput, manager }) 
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
   const [githubToken, setGithubToken] = useState("");
-  useEffect(() => { manager.getGitHubToken().then(k => { if (k) setGithubToken(k); }); }, [manager]);
+  useEffect(() => {
+    manager.getGitHubToken()
+      .then(k => { if (k) setGithubToken(k); })
+      .catch(() => {});
+  }, [manager]);
   const [githubRepos, setGithubRepos] = useState([]);
   const [cloneTarget, setCloneTarget] = useState(workspaceRoot || MOCK_ROOT);
 
@@ -243,10 +245,14 @@ function ExtPanel({ workspaceRoot, activeFile, onOpenSide, onOutput, manager }) 
     }
   };
 
-  const saveGithubToken = () => {
-    manager.setGitHubToken(githubToken.trim());
-    setNotice("GitHub token saved");
-    setTimeout(()=>setNotice(""), 1800);
+  const saveGithubToken = async () => {
+    try {
+      await manager.setGitHubToken(githubToken.trim());
+      setNotice("GitHub token saved");
+      setTimeout(()=>setNotice(""), 1800);
+    } catch (e) {
+      setError(String(e?.message || e));
+    }
   };
 
   const loadGithubRepos = async () => {
@@ -389,7 +395,7 @@ function ExtPanel({ workspaceRoot, activeFile, onOpenSide, onOutput, manager }) 
 }
 
 // ── Accounts Panel ────────────────────────────────────────────────────────────
-function AccountsPanel({ manager, status, refresh, routerScores, routerStrategy, onStrategy }) {
+function AccountsPanel({ manager, status, refresh, routerScores, routerStrategy, onStrategy, onToast }) {
   const [form,    setForm]    = useState({provider:"chatgpt",label:"",apiKey:"",model:""});
   const [showAdd, setShowAdd] = useState(false);
   const SC = {active:"#22c55e",limited:"#f59e0b",error:"#ef4444",disabled:"#6b7280"};
@@ -398,7 +404,17 @@ function AccountsPanel({ manager, status, refresh, routerScores, routerStrategy,
   const totalTokens = accounts.reduce((n,a)=>n+(a.tokensIn||0)+(a.tokensOut||0),0);
   const totalCost = accounts.reduce((n,a)=>n+(a.costUsd||0),0);
   const fmtCost = n => n ? `$${n.toFixed(n < 0.01 ? 4 : 2)}` : "$0.00";
-  const doAdd = async () => { await manager.add({...form}); setForm({provider:"chatgpt",label:"",apiKey:"",model:""}); setShowAdd(false); refresh(); };
+  const doAdd = async () => {
+    try {
+      await manager.add({ ...form });
+    } catch (err) {
+      onToast?.({ msg: `⚠ ${String(err?.message || err)}`, type: "warn" });
+      return;
+    }
+    setForm({ provider:"chatgpt", label:"", apiKey:"", model:"" });
+    setShowAdd(false);
+    refresh();
+  };
 
   return (
     <div className="panel-scroll">
@@ -1305,7 +1321,7 @@ export default function App() {
       case "search":   return <SearchPanel code={code}/>;
       case "git":      return <GitPanel workspaceRoot={workspaceRoot}/>;
       case "ext":      return <ExtPanel workspaceRoot={workspaceRoot} activeFile={activeTab} onOpenSide={id=>{setActivity(id);setSideOpen(true);}} onOutput={line=>{openPanel("output");pushOutput(line);}} manager={manager}/>;
-      case "accounts": return <AccountsPanel manager={manager} status={accStatus} refresh={()=>setAccStatus(manager.getStatus())} routerScores={routerScores} routerStrategy={routerStrategy} onStrategy={s=>{setRT(s);manager.router.setStrategy(s);}}/>;
+      case "accounts": return <AccountsPanel manager={manager} status={accStatus} refresh={()=>setAccStatus(manager.getStatus())} routerScores={routerScores} routerStrategy={routerStrategy} onStrategy={s=>{setRT(s);manager.router.setStrategy(s);}} onToast={setToast}/>;
       case "chat":     return <ChatPanel manager={manager} status={accStatus} editorRef={editorRef} lang={lang} code={code} onProposeEdit={showInlineDiff}/>;
       case "wayai":    return <WayAITab manager={manager} accStatus={accStatus} editorRef={editorRef} code={code} lang={lang} projectRoot={workspaceRoot} activeFile={activeTab} openFiles={tabs.map(t=>t.key)} />;
       default:         return null;

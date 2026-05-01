@@ -103,7 +103,7 @@ export class AccountManager {
     const meta = loadMeta();
     const allKeys = await secureGetAll();
     this.accounts = meta.map(acc => ({
-      tokensIn: 0, tokensOut: 0, costUsd: 0, requests: 0, errors: 0, limitHits: 0, _streak: 0,
+      tokensIn: 0, tokensOut: 0, costUsd: 0, requests: 0, attempts: 0, errors: 0, limitHits: 0, _streak: 0,
       ...acc,
       apiKey: allKeys[`key_${acc.id}`] || "",
     }));
@@ -121,11 +121,17 @@ export class AccountManager {
       apiKey: opts.apiKey || "", baseUrl: opts.baseUrl || prov.baseUrl || "",
       model: opts.model || prov.defaultModel || "",
       status: "active", requests: 0, errors: 0, limitHits: 0, lastUsed: null, _streak: 0,
+      attempts: 0,
       tokensIn: 0, tokensOut: 0, costUsd: 0,
     };
     this.accounts.push(acc);
     if (!this.activeId) this.activeId = acc.id;
-    if (opts.apiKey) await secureSet(`key_${acc.id}`, opts.apiKey);
+    try {
+      if (opts.apiKey) await secureSet(`key_${acc.id}`, opts.apiKey);
+    } catch (err) {
+      this.accounts = this.accounts.filter(a => a.id !== acc.id);
+      throw new Error(`Failed to save API key securely: ${err?.message || err}. Account not added.`);
+    }
     this._save();
     return acc;
   }
@@ -140,12 +146,16 @@ export class AccountManager {
   async update(id, patch) {
     const a = this._find(id);
     if (!a) return;
-    if ("apiKey" in patch) {
-      if (patch.apiKey) {
-        await secureSet(`key_${id}`, patch.apiKey);
-      } else {
-        await secureDel(`key_${id}`);
+    try {
+      if (patch.apiKey !== undefined) {
+        if (patch.apiKey) {
+          await secureSet(`key_${id}`, patch.apiKey);
+        } else {
+          await secureDel(`key_${id}`);
+        }
       }
+    } catch (err) {
+      throw new Error(`Failed to save API key: ${err?.message || err}`);
     }
     Object.assign(a, patch);
     this._save();
@@ -163,7 +173,11 @@ export class AccountManager {
   }
 
   async getGitHubToken() {
-    return secureGet("github_token");
+    try {
+      return await secureGet("github_token");
+    } catch {
+      return null;
+    }
   }
 
   async call(prompt,{onToken,model,signal}={}) {
@@ -273,9 +287,14 @@ export class AccountManager {
 
   _record(id,success,ms,errMsg="",usage=null) {
     const a=this._find(id);if(!a)return;
-    a.requests++;a.lastUsed=Date.now();this.router.record(id,success,ms);
+    a.attempts=(a.attempts||0)+1;
+    this.router.record(id,success,ms);
     a.tokensIn=a.tokensIn||0;a.tokensOut=a.tokensOut||0;a.costUsd=a.costUsd||0;
-    if(success){a._streak=0;}
+    if(success){
+      a.requests++;
+      a.lastUsed=Date.now();
+      a._streak=0;
+    }
     else{
       a.errors++;a._streak=(a._streak||0)+1;
       const isLimit=LIMIT_PATTERNS.some(p=>p.test(errMsg));
@@ -294,7 +313,24 @@ export class AccountManager {
     this.onChange({...this._status(),toast:`↻ ${from?.label} → ${next.label} (${reason})`,toastType:"info"});
   }
 
-  _nextAvailable(excludeId)  { return this.accounts.find(a=>a.id!==excludeId&&a.status==="active")||null; }
+  _nextAvailable(excludeId) {
+    const candidates = this.accounts.filter(a => a.id !== excludeId && a.status === "active");
+    if (!candidates.length) return null;
+    if (candidates.length === 1) return candidates[0];
+
+    const score = (acc) => {
+      const prov = PROVIDERS[acc.provider] || {};
+      const rs = this.router.scores[acc.id] || { latencyMs: 9999, errorRate: 0 };
+      const latency = (rs.latencyMs || 9999) / 1000;
+      const cost = (prov.costPer1k || 0) * 100;
+      const errPenalty = (rs.errorRate || 0) * 500;
+      if (this.router.strategy === "latency") return latency + errPenalty;
+      if (this.router.strategy === "cost") return cost + errPenalty;
+      return latency * 0.5 + cost * 0.5 + errPenalty;
+    };
+
+    return candidates.sort((a, b) => score(a) - score(b))[0];
+  }
   _getActive()               { return this._find(this.activeId)||this.accounts.find(a=>a.status==="active")||null; }
   _find(id)                  { return this.accounts.find(a=>a.id===id); }
   _initActive()              { this.activeId=this.accounts.find(a=>a.status==="active")?.id||null; }

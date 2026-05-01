@@ -33,7 +33,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' http://localhost:* http://127.0.0.1:* https://api.openai.com https://api.githubcopilot.com https://api.groq.com https://api.mistral.ai https://api.deepseek.com https://openrouter.ai https://generativelanguage.googleapis.com https://api.anthropic.com https://api.github.com; worker-src 'self' blob:; frame-ancestors 'none'; object-src 'none'; base-uri 'none'"
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self' https://api.openai.com https://api.anthropic.com https://generativelanguage.googleapis.com https://api.groq.com https://api.mistral.ai https://api.deepseek.com https://openrouter.ai https://api.githubcopilot.com http://localhost:11434 http://localhost:1234; frame-ancestors 'none'; object-src 'none'; base-uri 'none'; worker-src 'none'"
     }
   },
   "plugins": {
