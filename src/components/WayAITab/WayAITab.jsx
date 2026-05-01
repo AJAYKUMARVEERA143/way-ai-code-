@@ -38,6 +38,47 @@ function quickPrompt(kind, code, lang, selection) {
   return `Review this ${lang} code and suggest a pragmatic implementation plan.\n\n\`\`\`${lang}\n${target}\n\`\`\``;
 }
 
+function analyzeTaskDNA(taskInput, context) {
+  const text = String(taskInput || "").toLowerCase();
+  const tokens = text.split(/\s+/).filter(Boolean);
+  const destructive = /(delete|remove|drop|wipe|truncate|kill|destroy|reset|rewrite all|replace entire)/.test(text);
+  const commandHeavy = /(build|run|npm|cargo|python|terminal|command|shell|script)/.test(text);
+  const multiFile = /(across|project|workspace|all files|entire app|system|repo|repository|cross-file)/.test(text) || (context.openFiles?.length || 0) > 3;
+  const intent = destructive ? "destructive" : /refactor|cleanup|rename|restructure/.test(text) ? "refactor" : /explain|why|understand|walkthrough/.test(text) ? "explain" : /test|spec|coverage/.test(text) ? "test" : /fix|bug|issue|error|debug/.test(text) ? "debug" : commandHeavy ? "operate" : "build";
+  const scope = multiFile ? "project-wide" : context.activeFile ? "active-file" : "open-context";
+  const risk = destructive ? "high" : commandHeavy || multiFile ? "medium" : "low";
+  const confidence = Math.max(18, Math.min(96,
+    38 +
+    (context.activeFile ? 16 : 0) +
+    ((context.selectionLength || 0) > 0 ? 12 : 0) +
+    ((context.openFiles?.length || 0) > 1 ? 8 : 0) +
+    (context.offlineReady ? 6 : 0) -
+    (risk === "high" ? 24 : risk === "medium" ? 10 : 0)
+  ));
+
+  const tags = [
+    `${tokens.length || 0} words`,
+    context.language || "plaintext",
+    context.activeProviderLabel || "No provider",
+    context.offlineReady ? "offline-ready" : "cloud-only",
+    commandHeavy ? "tool-aware" : "code-first",
+  ];
+
+  return { intent, scope, risk, confidence, commandHeavy, destructive, tags };
+}
+
+function blueprintPrompt(kind, context) {
+  const file = context.activeFile || "the active file";
+  const selection = context.selection || context.code || "";
+  if (kind === "pulse") {
+    return `Perform a Patch Pulse on ${file}. Detect the smallest high-impact improvement, explain the risk, then implement only the minimal safe change.\n\n\`\`\`${context.language}\n${selection}\n\`\`\``;
+  }
+  if (kind === "map") {
+    return `Create a System Map for ${file}. Explain the controlling code path, dependencies, likely failure points, and the next safest edit slice.\n\n\`\`\`${context.language}\n${selection}\n\`\`\``;
+  }
+  return `Run a Risk Scan on ${file}. Identify security, reliability, and regression risks first. Then propose the smallest fix plan.\n\n\`\`\`${context.language}\n${selection}\n\`\`\``;
+}
+
 function stamp() {
   return new Date().toLocaleTimeString();
 }
@@ -208,6 +249,23 @@ export default function WayAITab({ manager, accStatus, editorRef, code, lang, pr
   const cloudReady = (accStatus.accounts || []).some(account => !PROVIDERS[account.provider]?.local && account.status === "active");
   const localReady = (accStatus.accounts || []).some(account => PROVIDERS[account.provider]?.local && account.status === "active");
   const offline = !cloudReady && localReady;
+  const selection = currentSelection(editorRef);
+  const taskDNA = useMemo(() => analyzeTaskDNA(taskInput, {
+    activeFile,
+    openFiles,
+    language: lang,
+    offlineReady: localReady,
+    activeProviderLabel: active?.label,
+    selectionLength: selection.length,
+  }), [taskInput, activeFile, openFiles, lang, localReady, active?.label, selection.length]);
+  const capsules = [
+    activeFile ? { label: "File", value: activeFile.split(/[\\/]/).pop() } : null,
+    { label: "Lang", value: lang },
+    { label: "Open", value: `${openFiles?.length || 0} files` },
+    { label: "Selection", value: selection ? `${selection.split(/\n/).length} lines` : "none" },
+    { label: "Provider", value: active?.label || "none" },
+    { label: "Mode", value: offline ? "offline" : "online" },
+  ].filter(Boolean);
 
   return (
     <div className="wayai-tab">
@@ -257,6 +315,52 @@ export default function WayAITab({ manager, accStatus, editorRef, code, lang, pr
           <button className="btn-secondary" disabled={streaming} onClick={() => { const prompt = quickPrompt("explain", code, lang, currentSelection(editorRef)); setTaskInput(prompt); runAgent(prompt); }}>Explain</button>
           <button className="btn-secondary" disabled={!streaming} onClick={stopAgent}>Stop</button>
         </div>
+        <div className="wayai-blueprints">
+          <button className="wayai-blueprint" disabled={streaming} onClick={() => { const prompt = blueprintPrompt("pulse", { activeFile, selection, code, language: lang }); setTaskInput(prompt); runAgent(prompt); }}>
+            <strong>Patch Pulse</strong>
+            <span>smallest high-impact fix</span>
+          </button>
+          <button className="wayai-blueprint" disabled={streaming} onClick={() => { const prompt = blueprintPrompt("map", { activeFile, selection, code, language: lang }); setTaskInput(prompt); runAgent(prompt); }}>
+            <strong>System Map</strong>
+            <span>trace the controlling path</span>
+          </button>
+          <button className="wayai-blueprint" disabled={streaming} onClick={() => { const prompt = blueprintPrompt("risk", { activeFile, selection, code, language: lang }); setTaskInput(prompt); runAgent(prompt); }}>
+            <strong>Risk Scan</strong>
+            <span>surface breakpoints first</span>
+          </button>
+        </div>
+      </div>
+
+      <div className="wayai-intel">
+        <div className="wayai-section-head"><span>TASK DNA</span><span className={`wayai-risk ${taskDNA.risk}`}>{taskDNA.risk} risk</span></div>
+        <div className="wayai-dna-grid">
+          <div className="wayai-dna-card">
+            <span className="wayai-dna-k">Intent</span>
+            <strong>{taskDNA.intent}</strong>
+          </div>
+          <div className="wayai-dna-card">
+            <span className="wayai-dna-k">Scope</span>
+            <strong>{taskDNA.scope}</strong>
+          </div>
+          <div className="wayai-dna-card">
+            <span className="wayai-dna-k">Confidence</span>
+            <strong>{taskDNA.confidence}%</strong>
+          </div>
+          <div className="wayai-dna-card">
+            <span className="wayai-dna-k">Execution</span>
+            <strong>{taskDNA.commandHeavy ? "tool + code" : "code-first"}</strong>
+          </div>
+        </div>
+        <div className="wayai-confidence-rail">
+          <div className="wayai-confidence-fill" style={{ width: `${taskDNA.confidence}%` }}/>
+        </div>
+        <div className="wayai-capsules">
+          {capsules.map(capsule => <span key={`${capsule.label}:${capsule.value}`} className="wayai-capsule"><span>{capsule.label}</span><strong>{capsule.value}</strong></span>)}
+        </div>
+        <div className="wayai-tags">
+          {taskDNA.tags.map(tag => <span key={tag} className="wayai-tag">{tag}</span>)}
+        </div>
+        {taskDNA.destructive && <div className="wayai-guard-banner">Guard rail active: destructive intent detected. Command execution will be blocked for dangerous operations.</div>}
       </div>
 
       <div className="wayai-current">

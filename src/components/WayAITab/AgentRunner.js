@@ -16,6 +16,17 @@ Format:
 
 Step types: read_file, write_file, search_files, ai_call, run_command`;
 
+const BLOCKED_COMMAND_PATTERNS = [
+  /(^|\s)rm\s+-rf(\s|$)/i,
+  /(^|\s)del\s+\/f/i,
+  /(^|\s)format\s+[a-z]:/i,
+  /git\s+reset\s+--hard/i,
+  /git\s+clean\s+-fd/i,
+  /(^|\s)shutdown(\s|$)/i,
+  /(^|\s)reboot(\s|$)/i,
+  /(^|\s)mkfs(\s|$)/i,
+];
+
 function extractJson(text = "") {
   const trimmed = String(text).trim();
   const fenced = trimmed.match(/```(?:json)?\n([\s\S]*?)```/i);
@@ -273,6 +284,7 @@ export class AgentRunner {
 
   async _runCommandStep(step, context, memory) {
     if (!this.terminalApi?.run) throw new Error("Terminal API unavailable");
+    this._validateCommand(step.command || "");
     const result = await this.terminalApi.run(context.projectRoot, step.command || "", step.timeoutSecs || 45);
     memory.lastCommand = result;
     return {
@@ -393,6 +405,13 @@ export class AgentRunner {
       if (lines.length > 30) break;
     }
     return lines.join("\n");
+  }
+
+  _validateCommand(command) {
+    const text = String(command || "").trim();
+    if (!text) throw new Error("Command step missing command text");
+    const blocked = BLOCKED_COMMAND_PATTERNS.find(pattern => pattern.test(text));
+    if (blocked) throw new Error(`Blocked unsafe command: ${text}`);
   }
 
   _sanitizeStepInput(step) {
