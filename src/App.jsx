@@ -17,7 +17,7 @@ import {
   writeFile, langFromPath, langColor, pathExt, LANG_COLOR, MOCK_ROOT,
   detectTools, packageScripts, npmInstall, npmRunScript, pythonRunFile, gitClone,
   gitStatus, gitLog, gitStage, gitUnstage, gitCommit, gitPush, gitPull,
-  gitPushWithToken,
+  gitPushWithToken, searchFiles, IS_TAURI,
 } from "./lib/fs.js";
 import { useDockPanel, FloatingPanel, DockPlaceholder, PanelHeader } from "./components/DockSystem.jsx";
 import "./components/DockSystem.css";
@@ -574,11 +574,142 @@ function AccountEditPopup({ acc, manager, refresh, onClose }) {
   );
 }
 
+// ── Connect Provider Panel ─────────────────────────────────────────────────────
+function ConnectProviderPanel({ pid, mode, form, setForm, showKey, setShowKey, onDone, onCancel, ghUser, manager }) {
+  const prov = PROVIDERS[pid] || {};
+  const isCopilotWithGH = pid === "copilot" && ghUser;
+  const [phase,     setPhase]     = useState(mode === "apikey" || prov.local ? 2 : 1);
+  const [testing,   setTesting]   = useState(false);
+  const [testState, setTestState] = useState(null);
+  const [testMsg,   setTestMsg]   = useState("");
+
+  useEffect(() => { setTestState(null); setTestMsg(""); }, [form.apiKey, form.model]);
+
+  const openUrl = (url) => { try { window.open(url, "_blank", "noopener"); } catch {} };
+
+  const runTest = async () => {
+    if (!form.apiKey.trim() && !prov.local) { setTestState("fail"); setTestMsg("Enter an API key first"); return; }
+    setTesting(true); setTestState(null); setTestMsg("");
+    try {
+      const result = await manager.testAccountConfig({
+        provider: pid, apiKey: form.apiKey.trim(),
+        model: form.model || prov.defaultModel, baseUrl: prov.baseUrl,
+      });
+      setTestState(result.ok ? "ok" : "fail");
+      setTestMsg(result.message);
+    } catch(e) {
+      setTestState("fail"); setTestMsg(String(e?.message || e).slice(0, 180));
+    } finally { setTesting(false); }
+  };
+
+  const tierLabel = prov.local ? "Local / Free" : prov.costPer1k === 0 ? "Free tier" : `~$${prov.costPer1k}/1K tokens`;
+
+  return (
+    <div className="cp-fullscreen">
+      {/* Back */}
+      <button className="cp-back" onClick={onCancel}>← All Providers</button>
+
+      {/* Brand header */}
+      <div className="cp-brand">
+        <span className="cp-brand-icon" style={{color: prov.color}}>{prov.icon}</span>
+        <div className="cp-brand-info">
+          <div className="cp-brand-name">{prov.label}</div>
+          <div className="cp-brand-sub">{prov.hint}</div>
+          <span className="cp-tier-badge">{tierLabel}</span>
+        </div>
+      </div>
+
+      {/* Copilot: GitHub pre-filled */}
+      {isCopilotWithGH && (
+        <div className="cp-gh-banner">
+          <img src={ghUser.avatar_url} alt="" width={20} height={20} style={{borderRadius:"50%"}}/>
+          <div>
+            <strong>{ghUser.login}</strong> — GitHub account detected
+            <div style={{fontSize:11,color:"var(--t3)",marginTop:1}}>Token pre-filled from your GitHub session</div>
+          </div>
+        </div>
+      )}
+
+      {/* Phase 1: Open portal */}
+      {phase === 1 && !prov.local && (
+        <div className="cp-step1">
+          <div className="cp-step-label"><span className="cp-step-num">1</span> Get your API key</div>
+          {prov.signInUrl && (
+            <button className="cp-portal-cta" onClick={() => { openUrl(prov.signInUrl); setTimeout(() => setPhase(2), 800); }}>
+              Open {prov.label} Portal →
+            </button>
+          )}
+          {pid === "copilot" && !isCopilotWithGH && (
+            <div className="cp-step1-note">Requires an active GitHub Copilot subscription. Create a token with <code>copilot</code> scope.</div>
+          )}
+          <button className="cp-skip-link" onClick={() => setPhase(2)}>I already have a key — skip →</button>
+        </div>
+      )}
+
+      {/* Phase 2: Enter credentials */}
+      {(phase === 2 || prov.local) && (
+        <div className="cp-step2">
+          {!prov.local && <div className="cp-step-label"><span className="cp-step-num">2</span> Enter your credentials</div>}
+
+          <input className="way-input" placeholder={`Label (e.g. My ${prov.label})`}
+            value={form.label} onChange={e => setForm(f => ({...f, label: e.target.value}))}/>
+
+          {!prov.local && (
+            <div className="cp-key-row">
+              <div className="add-key-wrap" style={{flex:1}}>
+                <input className="way-input" type={showKey ? "text" : "password"}
+                  placeholder={prov.apiKeyHint || "API Key"}
+                  value={form.apiKey}
+                  onChange={e => setForm(f => ({...f, apiKey: e.target.value}))}
+                  onKeyDown={e => e.key === "Enter" && onDone()}
+                  autoFocus/>
+                <button className="add-key-eye" title={showKey ? "Hide" : "Show"} onClick={() => setShowKey(v => !v)}>
+                  {showKey ? <EyeOffIcon/> : <EyeIcon/>}
+                </button>
+              </div>
+              <button className="cp-test-btn" disabled={testing || !form.apiKey.trim()} onClick={runTest}>
+                {testing ? "…" : "Test"}
+              </button>
+            </div>
+          )}
+
+          {testState && (
+            <div className={`cp-test-result ${testState}`}>
+              {testState === "ok" ? "✓" : "✗"} {testMsg}
+            </div>
+          )}
+
+          {prov.models?.length > 0 && (
+            <select className="cp-model-sel" value={form.model || prov.defaultModel}
+              onChange={e => setForm(f => ({...f, model: e.target.value}))}>
+              {prov.models.map(m => <option key={m} value={m}>{m}</option>)}
+            </select>
+          )}
+
+          {prov.local && (
+            <div className="cp-local-hint">
+              Make sure <strong>{prov.label}</strong> is running at <code>{prov.baseUrl}</code>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Actions */}
+      <div className="cp-actions">
+        <button className="btn-primary" onClick={onDone} disabled={phase === 1 && !prov.local}>
+          {prov.local ? "Configure" : phase === 1 ? "Connect (enter key first)" : "Connect"}
+        </button>
+        <button className="btn-secondary" onClick={onCancel}>Cancel</button>
+      </div>
+    </div>
+  );
+}
+
 function AccountsPanel({ manager, status, refresh, routerScores, routerStrategy, onStrategy, onToast }) {
-  const [form,    setForm]    = useState({provider:"chatgpt",label:"",apiKey:"",model:""});
-  const [showAdd, setShowAdd] = useState(false);
-  const [showAddKey, setShowAddKey] = useState(false);
-  const [editingId, setEditingId] = useState(null);
+  const [form,       setForm]      = useState({provider:"chatgpt",label:"",apiKey:"",model:""});
+  const [connectMode,setConnMode]  = useState(null); // { pid, mode: 'signin'|'apikey' }
+  const [showKey,    setShowKey]   = useState(false);
+  const [editingId,  setEditingId] = useState(null);
   // GitHub login state
   const [ghUser, setGhUser] = useState(() => manager?.getGitHubUser?.() || null);
   const [showGhForm, setShowGhForm] = useState(false);
@@ -633,8 +764,23 @@ function AccountsPanel({ manager, status, refresh, routerScores, routerStrategy,
       return;
     }
     setForm({ provider:"chatgpt", label:"", apiKey:"", model:"" });
-    setShowAdd(false);
+    setConnMode(null);
     refresh();
+  };
+
+  const openConnect = async (pid, mode) => {
+    const base = { provider: pid, label: "", apiKey: "", model: "" };
+    // Copilot + sign-in: auto-fill with stored GitHub token
+    if (pid === 'copilot' && mode === 'signin' && ghUser) {
+      const token = await manager.getGitHubToken().catch(() => null);
+      if (token) {
+        setForm({ ...base, apiKey: token, label: `GitHub Copilot (${ghUser.login})` });
+        setConnMode({ pid, mode });
+        return;
+      }
+    }
+    setForm(base);
+    setConnMode({ pid, mode });
   };
 
   const runAccountTest = async (event, acc) => {
@@ -732,26 +878,53 @@ function AccountsPanel({ manager, status, refresh, routerScores, routerStrategy,
           <button key={s} className={`strat-btn ${routerStrategy===s?"on":""}`} onClick={()=>onStrategy(s)}>{s}</button>
         ))}
       </div>
-      <div className="acc-panel-hd">
-        <span className="sec-head">ALL ACCOUNTS</span>
-        <button className="btn-icon-sm" onClick={()=>setShowAdd(p=>!p)}><Ic.Plus/> Add</button>
-      </div>
-      {showAdd && (
-        <div className="add-acc-form">
-          <select className="way-input" value={form.provider} onChange={e=>setForm(f=>({...f,provider:e.target.value}))}>
-            {Object.entries(PROVIDERS).map(([k,v])=><option key={k} value={k}>{v.icon} {v.label}</option>)}
-          </select>
-          <input className="way-input" placeholder="Label (e.g. GPT Account 2)" value={form.label} onChange={e=>setForm(f=>({...f,label:e.target.value}))}/>
-          <div className="add-key-wrap">
-            <input className="way-input" type={showAddKey?"text":"password"} placeholder="API Key" value={form.apiKey} onChange={e=>setForm(f=>({...f,apiKey:e.target.value}))}/>
-            <button className="add-key-eye" title={showAddKey?"Hide key":"Show key"} onClick={()=>setShowAddKey(v=>!v)}>
-              {showAddKey ? <EyeOffIcon/> : <EyeIcon/>}
-            </button>
+
+      {/* ── Connect Providers ── */}
+      {connectMode ? (
+        <ConnectProviderPanel
+          pid={connectMode.pid}
+          mode={connectMode.mode}
+          form={form}
+          setForm={setForm}
+          showKey={showKey}
+          setShowKey={setShowKey}
+          onDone={doAdd}
+          ghUser={ghUser}
+          manager={manager}
+          onCancel={() => { setConnMode(null); setForm({ provider:"chatgpt", label:"", apiKey:"", model:"" }); }}
+        />
+      ) : (
+        <>
+          <div className="acc-panel-hd" style={{marginTop:8}}>
+            <span className="sec-head">AI PROVIDERS</span>
+            <span style={{fontSize:10,color:"var(--t3)"}}>click to connect</span>
           </div>
-          <input className="way-input" placeholder="Model (optional)" value={form.model} onChange={e=>setForm(f=>({...f,model:e.target.value}))}/>
-          <div className="form-row"><button className="btn-primary" onClick={doAdd}>Add Account</button><button className="btn-secondary" onClick={()=>setShowAdd(false)}>Cancel</button></div>
-        </div>
+          <div className="prov-grid">
+            {Object.entries(PROVIDERS).map(([pid, prov]) => {
+              const connected = accounts.filter(a => a.provider === pid);
+              const tierLabel = prov.local ? "Local" : prov.costPer1k === 0 ? "Free" : "Paid";
+              return (
+                <div key={pid} className={`prov-card${connected.length ? " prov-card-ok" : ""}`}
+                  onClick={() => openConnect(pid, "signin")}>
+                  <div className="prov-card-head">
+                    <span className="prov-card-icon" style={{color: prov.color}}>{prov.icon}</span>
+                    <span className={`prov-tier-badge prov-tier-${tierLabel.toLowerCase()}`}>{tierLabel}</span>
+                  </div>
+                  <div className="prov-card-name">{prov.label}</div>
+                  {connected.length > 0
+                    ? <div className="prov-card-status ok">✓ {connected.length} connected</div>
+                    : <div className="prov-card-status">{prov.local ? "not running" : "not connected"}</div>
+                  }
+                  <div className="prov-card-cta">
+                    {connected.length ? "＋ Add another" : prov.local ? "Configure" : "Connect →"}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </>
       )}
+
       {Object.entries(PROVIDERS).map(([pid,prov])=>{
         const accs = accounts.filter(a=>a.provider===pid);
         if (!accs.length) return null;
@@ -802,13 +975,65 @@ function AccountsPanel({ manager, status, refresh, routerScores, routerStrategy,
 }
 
 // ── Search Panel ──────────────────────────────────────────────────────────────
-function SearchPanel({ code, theme, setTheme, fontSize, setFontSize, wordWrap, setWordWrap, lineNumbers, setLineNumbers, minimapEnabled, setMinimapEnabled, tabSize, setTabSize, onOpenSettings }) {
-  const [q,setQ]        = useState("");
-  const [results,setR]  = useState([]);
-  const run = ()=>{
-    if(!q.trim()){setR([]);return;}
-    setR(code.split("\n").map((t,i)=>({n:i+1,t})).filter(r=>r.t.toLowerCase().includes(q.toLowerCase())));
+function SearchPanel({ code, workspaceRoot, onOpenFile, revealLine, theme, setTheme, fontSize, setFontSize, wordWrap, setWordWrap, lineNumbers, setLineNumbers, minimapEnabled, setMinimapEnabled, tabSize, setTabSize, onOpenSettings }) {
+  const [q, setQ]           = useState("");
+  const [replace, setRep]   = useState("");
+  const [showReplace, setShowRep] = useState(false);
+  const [caseSensitive, setCS]    = useState(false);
+  const [results, setResults]     = useState([]); // [{file, path, matches:[{line,text}]}]
+  const [busy, setBusy]           = useState(false);
+  const [matchCount, setMC]       = useState(0);
+  const [collapsed, setCollapsed] = useState({});
+
+  const run = async () => {
+    if (!q.trim()) { setResults([]); setMC(0); return; }
+    if (IS_TAURI && workspaceRoot) {
+      setBusy(true);
+      try {
+        const raw = await searchFiles(workspaceRoot, q, 200);
+        const grouped = [];
+        const seen = new Map();
+        let total = 0;
+        for (const item of (raw || [])) {
+          const key = item.path || item.file;
+          if (!seen.has(key)) { seen.set(key, []); grouped.push({ file: item.file || key.split(/[\\/]/).pop(), path: key, matches: seen.get(key) }); }
+          seen.get(key).push({ line: item.line, text: item.text || item.content || "" });
+          total++;
+        }
+        setResults(grouped);
+        setMC(total);
+      } catch {
+        const lines = code.split("\n");
+        const needle = caseSensitive ? q : q.toLowerCase();
+        const matches = lines.map((t,i)=>({line:i+1,text:t})).filter(r=>(caseSensitive?r.text:r.text.toLowerCase()).includes(needle));
+        setResults(matches.length ? [{ file: "current file", path: null, matches }] : []);
+        setMC(matches.length);
+      } finally { setBusy(false); }
+    } else {
+      const lines = code.split("\n");
+      const needle = caseSensitive ? q : q.toLowerCase();
+      const matches = lines.map((t,i)=>({line:i+1,text:t})).filter(r=>(caseSensitive?r.text:r.text.toLowerCase()).includes(needle));
+      setResults(matches.length ? [{ file: "current file", path: null, matches }] : []);
+      setMC(matches.length);
+    }
   };
+
+  const handleClick = (path, line) => {
+    if (path && onOpenFile) {
+      onOpenFile({ path, name: path.split(/[\\/]/).pop() });
+      setTimeout(() => revealLine?.(line), 300);
+    } else {
+      revealLine?.(line);
+    }
+  };
+
+  const highlightMatch = (text) => {
+    if (!q) return text;
+    const idx = caseSensitive ? text.indexOf(q) : text.toLowerCase().indexOf(q.toLowerCase());
+    if (idx < 0) return text;
+    return <>{text.slice(0,idx)}<mark className="search-hl">{text.slice(idx,idx+q.length)}</mark>{text.slice(idx+q.length)}</>;
+  };
+
   return (
     <div className="panel-scroll">
       <div className="search-quick-controls">
@@ -829,42 +1054,141 @@ function SearchPanel({ code, theme, setTheme, fontSize, setFontSize, wordWrap, s
         </select>
         <button className="search-mini-btn" onClick={onOpenSettings}>Settings</button>
       </div>
-      <div className="search-wrap">
-        <input className="search-inp" placeholder="Search in editor…" value={q}
-          onChange={e=>setQ(e.target.value)} onKeyDown={e=>e.key==="Enter"&&run()}/>
-        <button className="btn-search" onClick={run}>↵</button>
+
+      <div className="search-header">
+        <div className="search-row-wrap">
+          <div className="search-inp-row">
+            <input className="search-inp" placeholder={IS_TAURI ? "Search files…" : "Search in editor…"} value={q}
+              onChange={e=>setQ(e.target.value)} onKeyDown={e=>e.key==="Enter"&&run()}/>
+            <button className={`search-mini-btn ${caseSensitive?"on":""}`} title="Match case" onClick={()=>setCS(v=>!v)}>Aa</button>
+            <button className="btn-search" onClick={run} title="Search">↵</button>
+            <button className="search-mini-btn" title="Toggle replace" onClick={()=>setShowRep(v=>!v)}>±</button>
+          </div>
+          {showReplace && (
+            <div className="search-inp-row" style={{marginTop:3}}>
+              <input className="search-inp" placeholder="Replace…" value={replace} onChange={e=>setRep(e.target.value)}/>
+              <button className="search-mini-btn" title="Replace all (editor only)" onClick={()=>{
+                if (!replace || !q || !code) return;
+                const flags = caseSensitive ? "g" : "gi";
+                const escaped = q.replace(/[.*+?^${}()|[\]\\]/g,"\\$&");
+                const next = code.replace(new RegExp(escaped, flags), replace);
+                setQ(""); setResults([]); setMC(0);
+              }}>All</button>
+            </div>
+          )}
+        </div>
+        {matchCount > 0 && <div className="search-count">{matchCount} result{matchCount!==1?"s":""} in {results.length} file{results.length!==1?"s":""}</div>}
+        {busy && <div className="search-count">Searching…</div>}
       </div>
-      {results.length>0&&<>
-        <div className="search-count">{results.length} results</div>
-        {results.map(r=><div key={r.n} className="search-row"><span className="search-ln">{r.n}</span><span className="search-txt">{r.t}</span></div>)}
-      </>}
+
+      <div className="search-results">
+        {results.map(group => (
+          <div key={group.path || group.file} className="search-file-group">
+            <button className="search-file-hd" onClick={()=>setCollapsed(c=>({...c,[group.path||group.file]:!c[group.path||group.file]}))}>
+              <span className="search-file-chev">{collapsed[group.path||group.file] ? "▶" : "▼"}</span>
+              <span className="search-file-name">{group.file}</span>
+              <span className="search-file-count">{group.matches.length}</span>
+            </button>
+            {!collapsed[group.path||group.file] && group.matches.map((m,i) => (
+              <button key={i} className="search-row" onClick={()=>handleClick(group.path, m.line)}>
+                <span className="search-ln">{m.line}</span>
+                <span className="search-txt">{highlightMatch(m.text.trim())}</span>
+              </button>
+            ))}
+          </div>
+        ))}
+        {!busy && q && results.length===0 && matchCount===0 && <div className="search-empty">No results for "{q}"</div>}
+      </div>
     </div>
   );
 }
 
 // ── Message renderer ──────────────────────────────────────────────────────────
+function renderInline(text) {
+  const re = /(\*\*\*(.+?)\*\*\*|\*\*(.+?)\*\*|\*(.+?)\*|`([^`]+)`|\[([^\]]+)\]\(([^)]+)\)|~~(.+?)~~)/g;
+  const out = []; let last = 0, k = 0, m;
+  while ((m = re.exec(text)) !== null) {
+    if (m.index > last) out.push(text.slice(last, m.index));
+    if      (m[2]) out.push(<strong key={k++}><em>{m[2]}</em></strong>);
+    else if (m[3]) out.push(<strong key={k++}>{m[3]}</strong>);
+    else if (m[4]) out.push(<em key={k++}>{m[4]}</em>);
+    else if (m[5]) out.push(<code key={k++} className="msg-ic">{m[5]}</code>);
+    else if (m[6]) out.push(<a key={k++} href={m[7]} target="_blank" rel="noreferrer" className="msg-link">{m[6]}</a>);
+    else if (m[8]) out.push(<del key={k++}>{m[8]}</del>);
+    last = m.index + m[0].length;
+  }
+  if (last < text.length) out.push(text.slice(last));
+  return out.length === 1 && typeof out[0] === "string" ? out[0] : out;
+}
+
+function renderMdBlock(raw) {
+  const lines = raw.split("\n");
+  const out = []; let items = [], iTag = null, k = 0;
+  const flush = () => {
+    if (!items.length) return;
+    const T = iTag; out.push(<T key={k++} className="msg-list">{items}</T>);
+    items = []; iTag = null;
+  };
+  for (const line of lines) {
+    const hm = line.match(/^(#{1,6})\s+(.+)$/);
+    if (hm) { flush(); const lv = hm[1].length; const H = `h${lv}`; out.push(<H key={k++} className={`msg-h msg-h${lv}`}>{renderInline(hm[2])}</H>); continue; }
+    if (/^(-{3,}|\*{3,}|_{3,})$/.test(line.trim())) { flush(); out.push(<hr key={k++} className="msg-hr"/>); continue; }
+    const ulm = line.match(/^\s*[-*+]\s+(.+)$/);
+    if (ulm) { if (iTag !== "ul") { flush(); iTag = "ul"; } items.push(<li key={k++}>{renderInline(ulm[1])}</li>); continue; }
+    const olm = line.match(/^\s*\d+\.\s+(.+)$/);
+    if (olm) { if (iTag !== "ol") { flush(); iTag = "ol"; } items.push(<li key={k++}>{renderInline(olm[1])}</li>); continue; }
+    if (line.startsWith("> ")) { flush(); out.push(<blockquote key={k++} className="msg-bq">{renderInline(line.slice(2))}</blockquote>); continue; }
+    if (!line.trim()) { flush(); continue; }
+    flush();
+    out.push(<p key={k++} className="msg-p">{renderInline(line)}</p>);
+  }
+  flush();
+  return out;
+}
+
 function MsgContent({ content, onInsert }) {
   const parts = content.split(/(```[\s\S]*?```)/g);
   return (
     <div className="msg-body">
-      {parts.map((p,i)=>{
-        if(p.startsWith("```")){
-          const nl=p.indexOf("\n"), lang=nl>3?p.slice(3,nl).trim():"", code=nl>3?p.slice(nl+1,-3):p.slice(3,-3);
+      {parts.map((p, i) => {
+        if (p.startsWith("```")) {
+          const nl = p.indexOf("\n"), lang = nl > 3 ? p.slice(3, nl).trim() : "", code = nl > 3 ? p.slice(nl + 1, -3) : p.slice(3, -3);
           return (
             <div key={i} className="code-block">
               <div className="cb-hd">
-                <span className="cb-lang" style={{color:LANG_DOT[lang]||"#aaa"}}>{lang||"code"}</span>
-                <button className="cb-btn" onClick={()=>navigator.clipboard?.writeText(code)}>Copy</button>
-                {onInsert&&<button className="cb-btn ac" onClick={()=>onInsert(code)}>↩ Insert</button>}
+                <span className="cb-lang" style={{color: LANG_DOT[lang] || "#aaa"}}>{lang || "code"}</span>
+                <button className="cb-btn" onClick={() => navigator.clipboard?.writeText(code)}>Copy</button>
+                {onInsert && <button className="cb-btn ac" onClick={() => onInsert(code)}>↩ Insert</button>}
               </div>
               <pre className="cb-pre">{code}</pre>
             </div>
           );
         }
-        return p.trim()?<p key={i} className="msg-p">{p}</p>:null;
+        return p.trim() ? <div key={i}>{renderMdBlock(p)}</div> : null;
       })}
     </div>
   );
+}
+
+// ── Chat Rooms storage ────────────────────────────────────────────────────────
+const CONV_KEY = "wayai_conversations_v1";
+const WELCOME_MSG = { role:"ai", content:"Hi! I'm **Way AI Code** 🚀\n\nClick a file in the Explorer to open it, then select code and use the quick actions above.\n\nI'll auto-switch accounts if any rate limit is hit." };
+
+function loadConversations() {
+  try { return JSON.parse(localStorage.getItem(CONV_KEY) || "[]"); } catch { return []; }
+}
+function saveConversations(arr) {
+  try { localStorage.setItem(CONV_KEY, JSON.stringify(arr)); } catch {}
+}
+function makeConversation(agentId = "general") {
+  return { id: `conv_${Date.now()}`, name: "New Chat", agentId, messages: [WELCOME_MSG], createdAt: Date.now(), lastAt: Date.now() };
+}
+function initConversations() {
+  const saved = loadConversations();
+  if (saved.length) return saved;
+  const first = makeConversation("general");
+  saveConversations([first]);
+  return [first];
 }
 
 // ── Chat Panel ────────────────────────────────────────────────────────────────
@@ -946,142 +1270,264 @@ function rangeToPlain(range) {
   };
 }
 
-function ChatPanel({ manager, status, editorRef, lang, code, onProposeEdit }) {
-  const [msgs,setMsgs]     = useState([{role:"ai",content:"Hi! I'm **Way AI Code** 🚀\n\nClick a file in the Explorer to open it, then select code and use the quick actions above.\n\nI'll auto-switch accounts if any rate limit is hit."}]);
-  const [input,setInput]   = useState("");
-  const [streaming,setStr] = useState(false);
-  const [streamTxt,setST]  = useState("");
-  const [agentId, setAgentId] = useState(loadAgentMode);
-  const [detached, setDetached] = useState(false);
-  const [dragPos,  setDragPos]  = useState({ x: Math.max(0, window.innerWidth - 460), y: 60 });
-  const [dragSize, setDragSize] = useState({ w: 440, h: 560 });
+function ChatPanel({ manager, status, editorRef, lang, code, onProposeEdit, tabs = [], tabCode = {} }) {
+  const [conversations, setConversations] = useState(initConversations);
+  const [activeConvId, setActiveConvId]   = useState(() => initConversations()[0]?.id);
+  const [renamingId,   setRenamingId]     = useState(null);
+  const [renameVal,    setRenameVal]      = useState("");
+  const [input,  setInput]  = useState("");
+  const [streaming, setStr] = useState(false);
+  const [streamTxt, setST]  = useState("");
+  const [detached,  setDetached] = useState(false);
+  const [dragPos,   setDragPos]  = useState({ x: Math.max(0, window.innerWidth - 460), y: 60 });
+  const [dragSize,  setDragSize] = useState({ w: 440, h: 560 });
+  const [attachedFile,    setAttachedFile]    = useState(null);
+  const [showAttachMenu,  setShowAttachMenu]  = useState(false);
+  const attachBtnRef = useRef(null);
   const streamRef = useRef("");
   const endRef    = useRef(null);
+
+  const activeConv  = conversations.find(c => c.id === activeConvId) || conversations[0];
+  const msgs        = activeConv?.messages || [];
+  const agentId     = activeConv?.agentId || "general";
   const activeAgent = AI_AGENTS.find(a => a.id === agentId) || AI_AGENTS[0];
 
-  useEffect(()=>{ endRef.current?.scrollIntoView({behavior:"smooth"}); },[msgs,streamTxt]);
-  useEffect(()=>{ saveAgentMode(agentId); }, [agentId]);
+  useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }); }, [msgs, streamTxt]);
 
-  const withAgentInstruction = (prompt) => {
-    return [
-      "System role:",
-      activeAgent.instruction,
-      "Always follow explicit output constraints from the user prompt.",
-      "",
-      "User request:",
-      prompt,
-    ].join("\n");
+  useEffect(() => {
+    if (!showAttachMenu) return;
+    const handler = (e) => { if (!attachBtnRef.current?.contains(e.target)) setShowAttachMenu(false); };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [showAttachMenu]);
+
+  // ── Conversation actions ──────────────────────────────────────────────────
+  const updateConv = (id, patch) => {
+    setConversations(prev => {
+      const next = prev.map(c => c.id !== id ? c : { ...c, ...patch, lastAt: Date.now() });
+      saveConversations(next);
+      return next;
+    });
   };
 
-  const getSel = ()=>{
-    const ed=editorRef.current; if(!ed) return "";
-    return ed.getModel()?.getValueInRange(ed.getSelection())?.trim()||"";
+  const setMsgs = (updater) => {
+    setConversations(prev => {
+      const next = prev.map(c => {
+        if (c.id !== activeConvId) return c;
+        const newMsgs = typeof updater === "function" ? updater(c.messages) : updater;
+        return { ...c, messages: newMsgs, lastAt: Date.now() };
+      });
+      saveConversations(next);
+      return next;
+    });
   };
 
-  const insertCode = snippet=>{ const ed=editorRef.current; if(!ed) return; ed.executeEdits("way-ai",[{range:ed.getSelection(),text:snippet}]); };
+  const setAgentId = (id) => { updateConv(activeConvId, { agentId: id }); saveAgentMode(id); };
+
+  const newConversation = () => {
+    const conv = makeConversation(agentId);
+    setConversations(prev => { const next = [conv, ...prev]; saveConversations(next); return next; });
+    setActiveConvId(conv.id);
+  };
+
+  const deleteConversation = (id) => {
+    setConversations(prev => {
+      const next = prev.filter(c => c.id !== id);
+      if (!next.length) {
+        const first = makeConversation("general");
+        saveConversations([first]);
+        setActiveConvId(first.id);
+        return [first];
+      }
+      saveConversations(next);
+      if (activeConvId === id) setActiveConvId(next[0].id);
+      return next;
+    });
+  };
+
+  const autoName = (convId, firstUserMsg) => {
+    const name = firstUserMsg.trim().slice(0, 28) + (firstUserMsg.trim().length > 28 ? "…" : "");
+    updateConv(convId, { name });
+  };
+
+  // ── Send message ─────────────────────────────────────────────────────────
+  const withAgentInstruction = (prompt) =>
+    ["System role:", activeAgent.instruction, "Always follow explicit output constraints from the user prompt.", "", "User request:", prompt].join("\n");
+
+  const getSel = () => {
+    const ed = editorRef.current; if (!ed) return "";
+    return ed.getModel()?.getValueInRange(ed.getSelection())?.trim() || "";
+  };
+
+  const insertCode = snippet => { const ed = editorRef.current; if (!ed) return; ed.executeEdits("way-ai", [{ range: ed.getSelection(), text: snippet }]); };
 
   const send = async (prompt, label, options = {}) => {
-    if(!prompt||streaming) return;
+    if (!prompt || streaming) return;
     const readyCount = (status.accounts || []).filter(a => a.status === "active").length;
     if (!readyCount) {
-      setMsgs(p=>[...p,{role:"ai",content:"❌ **Error:** No ready accounts available.\n\nOpen Accounts panel and add/update a valid API key, then click Reset on errored accounts."}]);
+      setMsgs(p => [...p, { role:"ai", content:"❌ **Error:** No ready accounts available.\n\nOpen Accounts panel and add/update a valid API key, then click Reset on errored accounts." }]);
       return;
     }
     const currentReady = (status.accounts || []).find(a => a.id === status.activeId && a.status === "active");
     if (!currentReady) {
-      setMsgs(p=>[...p,{role:"ai",content:"⚠ Active account is not ready. Switched account may be required. Select a ready account in Accounts panel."}]);
+      setMsgs(p => [...p, { role:"ai", content:"⚠ Active account is not ready. Select a ready account in Accounts panel." }]);
       return;
     }
-    setMsgs(p=>[...p,{role:"user",content:label||prompt.slice(0,120)}]);
-    setStr(true); streamRef.current=""; setST("");
-    const prov = PROVIDERS[status.active?.provider];
+    // Auto-name conv from first user message
+    const isNewConv = activeConv?.name === "New Chat" && msgs.filter(m => m.role === "user").length === 0;
+    if (isNewConv) autoName(activeConvId, label || prompt);
+
+    setMsgs(p => [...p, { role:"user", content: label || prompt.slice(0, 120) }]);
+    setStr(true); streamRef.current = ""; setST("");
     try {
-      const onToken = t=>{ streamRef.current+=t; setST(streamRef.current); };
-      const {result,account} = await manager.call(withAgentInstruction(prompt),{onToken});
-      const final = streamRef.current||result;
-      setMsgs(p=>[...p,{role:"ai",content:final,acLabel:account.label,pColor:PROVIDERS[account.provider]?.color,pIcon:PROVIDERS[account.provider]?.icon,agentLabel:activeAgent.label}]);
+      const onToken = t => { streamRef.current += t; setST(streamRef.current); };
+      const { result, account } = await manager.call(withAgentInstruction(prompt), { onToken });
+      const final = streamRef.current || result;
+      setMsgs(p => [...p, { role:"ai", content: final, acLabel: account.label, pColor: PROVIDERS[account.provider]?.color, pIcon: PROVIDERS[account.provider]?.icon, agentLabel: activeAgent.label }]);
       if (options.inlineDiff && options.range && options.original) {
         const replacement = extractFirstCodeBlock(final);
         if (replacement) onProposeEdit?.({ ...options, replacement });
       }
       setST("");
     } catch(err) {
-      setMsgs(p=>[...p,{role:"ai",content:`❌ **Error:** ${err.message}\n\nCheck API keys in the Accounts panel.`}]);
+      setMsgs(p => [...p, { role:"ai", content:`❌ **Error:** ${err.message}\n\nCheck API keys in the Accounts panel.` }]);
     }
     setStr(false);
   };
 
   const prov   = PROVIDERS[status.active?.provider];
-  const pColor = prov?.color||"var(--accent)";
-  const pIcon  = prov?.icon||"◈";
+  const pColor = prov?.color || "var(--accent)";
+  const pIcon  = prov?.icon  || "◈";
 
+  const openFileTabs = tabs.filter(t => !t.isExtension);
+
+  const doSend = () => {
+    const s = getSel();
+    const fc = attachedFile
+      ? `File context: **${attachedFile.name}**\n\`\`\`${attachedFile.lang || ""}\n${attachedFile.content}\n\`\`\`\n\n`
+      : "";
+    const prompt = s ? `${fc}Code:\n\`\`\`${lang}\n${s}\n\`\`\`\n\nQuestion: ${input}` : `${fc}${input}`;
+    send(prompt, input);
+    setInput("");
+    setAttachedFile(null);
+  };
   const chatBody = (
     <>
+      {/* ── Chat rooms bar ── */}
+      <div className="chat-rooms-bar">
+        <div className="chat-rooms-tabs">
+          {conversations.map(conv => (
+            <div key={conv.id} className={`chat-room-tab${conv.id === activeConvId ? " active" : ""}`}
+              onClick={() => setActiveConvId(conv.id)}>
+              {renamingId === conv.id ? (
+                <input className="chat-room-rename-inp" autoFocus value={renameVal}
+                  onChange={e => setRenameVal(e.target.value)}
+                  onBlur={() => { updateConv(conv.id, { name: renameVal || conv.name }); setRenamingId(null); }}
+                  onKeyDown={e => {
+                    if (e.key === "Enter") { updateConv(conv.id, { name: renameVal || conv.name }); setRenamingId(null); }
+                    if (e.key === "Escape") setRenamingId(null);
+                    e.stopPropagation();
+                  }}
+                  onClick={e => e.stopPropagation()}
+                />
+              ) : (
+                <span className="chat-room-name" onDoubleClick={e => { e.stopPropagation(); setRenamingId(conv.id); setRenameVal(conv.name); }}>
+                  {conv.name}
+                </span>
+              )}
+              {conversations.length > 1 && (
+                <button className="chat-room-x" title="Close" onClick={e => { e.stopPropagation(); deleteConversation(conv.id); }}>×</button>
+              )}
+            </div>
+          ))}
+        </div>
+        <button className="chat-room-new" title="New Chat" onClick={newConversation}>＋</button>
+      </div>
+
+      {/* ── Account bar ── */}
       <div className="chat-acc-bar">
         {status.active
           ? <div className="chat-acc-tag" style={{color:pColor}}>{pIcon} <span className="chat-acc-name">{status.active.label}</span><span className="chat-acc-model">{status.active.model}</span></div>
           : <div className="chat-acc-tag warn">⚠ No accounts — add in Accounts panel</div>}
         <div className="chat-acc-right">
-          <select className="agent-select" value={agentId} onChange={e=>setAgentId(e.target.value)}>
-            {AI_AGENTS.map(a=><option key={a.id} value={a.id}>{a.label}</option>)}
+          <select className="agent-select" value={agentId} onChange={e => setAgentId(e.target.value)}>
+            {AI_AGENTS.map(a => <option key={a.id} value={a.id}>{a.label}</option>)}
           </select>
-          <span className="chat-acc-count">{(status.accounts||[]).filter(a=>a.status==="active").length} ready</span>
-          <button
-            className="btn-tiny chat-detach-btn"
-            title={detached ? "Dock back" : "Detach to floating window"}
-            onClick={()=>setDetached(v=>!v)}
-          >
+          <span className="chat-acc-count">{(status.accounts || []).filter(a => a.status === "active").length} ready</span>
+          <button className="btn-tiny chat-detach-btn" title={detached ? "Dock back" : "Detach to floating window"} onClick={() => setDetached(v => !v)}>
             {detached ? <Ic.Attach/> : <Ic.Popout/>}
           </button>
         </div>
       </div>
-      <div className="chat-agent-hint">
-        Agent: <strong>{activeAgent.label}</strong> · {activeAgent.hint}
-      </div>
+      <div className="chat-agent-hint">Agent: <strong>{activeAgent.label}</strong> · {activeAgent.hint}</div>
       <div className="chat-quick">
-        {QUICK.map(q=>(
+        {QUICK.map(q => (
           <button key={q.label} className="quick-btn" disabled={streaming}
-            onClick={()=>{
+            onClick={() => {
               const ed = editorRef.current;
               const selected = getSel();
               const range = rangeToPlain(ed?.getSelection());
               const target = selected || code;
-              send(q.fn(target,lang), q.label, { inlineDiff: !!(q.diff && selected), range, original:selected });
+              send(q.fn(target, lang), q.label, { inlineDiff: !!(q.diff && selected), range, original: selected });
             }}>
             {q.label}
           </button>
         ))}
       </div>
       <div className="chat-msgs">
-        {msgs.map((m,i)=>(
-          <div key={i} className={`msg ${m.role==="user"?"user":"ai"}`}>
-            {m.role==="ai"&&<div className="msg-meta" style={{color:m.pColor||pColor}}>{m.pIcon||pIcon} {m.acLabel||"Way AI"} · {m.agentLabel || activeAgent.label}</div>}
-            <MsgContent content={m.content} onInsert={m.role==="ai"?insertCode:null}/>
+        {msgs.map((m, i) => (
+          <div key={i} className={`msg ${m.role === "user" ? "user" : "ai"}`}>
+            {m.role === "ai" && <div className="msg-meta" style={{color: m.pColor || pColor}}>{m.pIcon || pIcon} {m.acLabel || "Way AI"} · {m.agentLabel || activeAgent.label}</div>}
+            <MsgContent content={m.content} onInsert={m.role === "ai" ? insertCode : null}/>
           </div>
         ))}
-        {streaming&&(
+        {streaming && (
           <div className="msg ai">
-            <div className="msg-meta" style={{color:pColor}}>{pIcon} streaming…</div>
-            {streamTxt?<MsgContent content={streamTxt}/>:<div className="dots"><span/><span/><span/></div>}
+            <div className="msg-meta" style={{color: pColor}}>{pIcon} streaming…</div>
+            {streamTxt ? <MsgContent content={streamTxt}/> : <div className="dots"><span/><span/><span/></div>}
           </div>
         )}
         <div ref={endRef}/>
       </div>
       <div className="chat-input-row">
-        <textarea className="chat-ta" rows={3} placeholder={`Ask ${activeAgent.label}… (Enter=send, Shift+Enter=newline)`}
-          value={input} onChange={e=>setInput(e.target.value)}
-          onKeyDown={e=>{
-            if(e.key==="Enter"&&!e.shiftKey){
-              e.preventDefault();
-              const s=getSel();
-              send(s?`Code:\n\`\`\`${lang}\n${s}\n\`\`\`\n\nQuestion: ${input}`:input, input);
-              setInput("");
-            }
-          }}/>
-        <button className="btn-send" disabled={streaming} style={{"--pc":pColor}}
-          onClick={()=>{ const s=getSel(); send(s?`Code:\n\`\`\`${lang}\n${s}\n\`\`\`\n\nQuestion: ${input}`:input,input); setInput(""); }}>
-          {streaming?"⏳":"↑"}
-        </button>
+        {attachedFile && (
+          <div className="chat-attach-row">
+            <span className="chat-attach-chip">
+              <span className="cac-icon">📎</span>
+              <span className="cac-name">{attachedFile.name}</span>
+              <button className="cac-x" onClick={() => setAttachedFile(null)}>×</button>
+            </span>
+          </div>
+        )}
+        <div className="chat-input-inner">
+          <textarea className="chat-ta" rows={3} placeholder={`Ask ${activeAgent.label}… (Enter=send, Shift+Enter=newline)`}
+            value={input} onChange={e => setInput(e.target.value)}
+            onKeyDown={e => {
+              if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); doSend(); }
+            }}/>
+          <div className="chat-input-btns">
+            <div style={{position:"relative"}} ref={attachBtnRef}>
+              <button className="chat-attach-btn" title="Attach file as context"
+                onClick={() => setShowAttachMenu(v => !v)}>📎</button>
+              {showAttachMenu && (
+                <div className="chat-attach-menu">
+                  {openFileTabs.length === 0
+                    ? <div className="cam-empty">No files open</div>
+                    : openFileTabs.map(t => (
+                      <button key={t.key} className="cam-item"
+                        onClick={() => { setAttachedFile({ key: t.key, name: t.name, lang: t.lang || "", content: (tabCode[t.key] || "").slice(0, 8000) }); setShowAttachMenu(false); }}>
+                        <span style={{color: LANG_DOT[t.lang] || "#999", fontSize: 9, marginRight: 4}}>■</span>{t.name}
+                      </button>
+                    ))
+                  }
+                </div>
+              )}
+            </div>
+            <button className="btn-send" disabled={streaming} style={{"--pc": pColor}} onClick={doSend}>
+              {streaming ? "⏳" : "↑"}
+            </button>
+          </div>
+        </div>
       </div>
     </>
   );
@@ -1090,20 +1536,10 @@ function ChatPanel({ manager, status, editorRef, lang, code, onProposeEdit }) {
     return (
       <>
         <DockPlaceholder title="AI Chat" onDock={() => setDetached(false)}/>
-        <FloatingPanel
-          id="chat_win"
-          title="Way AI Chat"
-          detached={true}
-          pos={dragPos}
-          setPos={setDragPos}
-          size={dragSize}
-          setSize={setDragSize}
-          onDock={() => setDetached(false)}
-          minW={340} minH={420}
-        >
-          <div className="chat-panel" style={{height:"100%", overflow:"hidden"}}>
-            {chatBody}
-          </div>
+        <FloatingPanel id="chat_win" title="Way AI Chat" detached={true}
+          pos={dragPos} setPos={setDragPos} size={dragSize} setSize={setDragSize}
+          onDock={() => setDetached(false)} minW={340} minH={420}>
+          <div className="chat-panel" style={{height:"100%", overflow:"hidden"}}>{chatBody}</div>
         </FloatingPanel>
       </>
     );
@@ -1180,19 +1616,46 @@ function CommandPalette({ open, commands, onClose }) {
   );
 }
 
-function ProblemsView({ tabs, dirtyTabs }) {
+function ProblemsView({ tabs, dirtyTabs, problems, onGoTo }) {
   const dirty = tabs.filter(t => dirtyTabs[t.key]);
+  const byFile = {};
+  for (const m of problems) {
+    const key = m.resource?.path || m.resource?.toString() || "unknown";
+    const fname = key.split(/[\\/]/).pop();
+    if (!byFile[fname]) byFile[fname] = [];
+    byFile[fname].push(m);
+  }
+  const hasAny = problems.length > 0 || dirty.length > 0;
   return (
     <div className="console-view">
-      {dirty.length ? dirty.map(t=>(
-        <div key={t.key} className="problem-row warn">
-          <span className="problem-icon">!</span>
+      {!hasAny && <div className="console-empty">No problems detected</div>}
+      {dirty.map(t => (
+        <div key={t.key} className="problem-row warn" onClick={()=>onGoTo?.(t.key, 1)}>
+          <span className="problem-sev warn">⚠</span>
           <span className="problem-main">Unsaved changes</span>
           <span className="problem-file">{t.name}</span>
         </div>
-      )) : (
-        <div className="console-empty">No problems detected</div>
-      )}
+      ))}
+      {Object.entries(byFile).map(([fname, markers]) => (
+        <div key={fname} className="problem-file-group">
+          <div className="problem-file-hd">
+            <span className="problem-file-name">{fname}</span>
+            <span className="problem-file-count">{markers.length}</span>
+          </div>
+          {markers.map((m, i) => {
+            const isErr = m.severity === 8;
+            return (
+              <div key={i} className={`problem-row ${isErr?"err":"warn"}`}
+                onClick={()=>onGoTo?.(m.resource?.path, m.startLineNumber)}>
+                <span className={`problem-sev ${isErr?"err":"warn"}`}>{isErr ? "⊘" : "⚠"}</span>
+                <span className="problem-main">{m.message}</span>
+                <span className="problem-pos">Ln {m.startLineNumber}, Col {m.startColumn}</span>
+                <span className="problem-file">{fname}</span>
+              </div>
+            );
+          })}
+        </div>
+      ))}
     </div>
   );
 }
@@ -1225,10 +1688,13 @@ function PortsView() {
 
 function BottomPanel({
   open, active, height, onHeightChange, onActive, onClose,
-  tabs, dirtyTabs, outputLines,
+  tabs, dirtyTabs, outputLines, problems, onGoToProblem,
 }) {
+  const errCount  = problems.filter(p => p.severity === 8).length;
+  const warnCount = problems.filter(p => p.severity === 4).length;
+  const totalCount = errCount + warnCount + tabs.filter(t=>dirtyTabs[t.key]).length;
   const panelTabs = [
-    { id:"problems", label:"PROBLEMS", count:tabs.filter(t=>dirtyTabs[t.key]).length },
+    { id:"problems", label:"PROBLEMS", count: totalCount || 0 },
     { id:"output", label:"OUTPUT" },
     { id:"debug", label:"DEBUG CONSOLE" },
     { id:"terminal", label:"TERMINAL" },
@@ -1263,7 +1729,7 @@ function BottomPanel({
         </div>
       </div>
       <div className="bottom-body">
-        {active==="problems" && <ProblemsView tabs={tabs} dirtyTabs={dirtyTabs}/>}
+        {active==="problems" && <ProblemsView tabs={tabs} dirtyTabs={dirtyTabs} problems={problems} onGoTo={onGoToProblem}/>}
         {active==="output" && <OutputView lines={outputLines}/>}
         {active==="debug" && <DebugConsoleView/>}
         {active==="terminal" && <TerminalPanel embedded/>}
@@ -1286,6 +1752,10 @@ export default function App() {
   const autocompleteCacheRef = useRef({ key:"", at:0, value:"" });
   const suppressAutoSaveRef = useRef(false);
   const dragStartRef = useRef({ x: 0, startWidth: 0, side: "primary" });
+  const sideWidthRef = useRef(null);
+  const secondarySideWidthRef = useRef(null);
+  const sideResizeMoveRef = useRef(null);
+  const sideResizeUpRef = useRef(null);
   const initialSettings = useRef(loadEditorSettings()).current;
 
   // Layout
@@ -1324,7 +1794,10 @@ export default function App() {
   const [dirtyTabs,setDirtyTabs] = useState({});          // tabKey → unsaved bool
   const [extTabData, setExtTabData] = useState({});      // tabKey → extension metadata
   const [extInstalled, setExtInstalled] = useState(() => {
-    try { return JSON.parse(localStorage.getItem("wayai_ext_installed_v1") || "[]"); }
+    try {
+      const raw = JSON.parse(localStorage.getItem("wayai_ext_installed_v1") || "[]");
+      return raw.map(x => (typeof x === "string" ? { id: x, name: x } : x));
+    }
     catch { return []; }
   });
 
@@ -1335,6 +1808,11 @@ export default function App() {
   const [routerStrategy,setRT]  = useState("balanced");
   const [accStatus, setAccStatus] = useState({accounts:[],activeId:null,active:null});
   const [outputLines, setOutputLines] = useState(["Way AI Code started", "Command Palette: Ctrl+Shift+P", "Toggle panel: Ctrl+`"]);
+  const [gitBranch, setGitBranch] = useState("main");
+  const [gitChangeCount, setGitChangeCount] = useState(0);
+  const [cursor, setCursor] = useState({ ln: 1, col: 1 });
+  const [problems, setProblems] = useState([]);
+  const [tabCtxMenu, setTabCtxMenu] = useState(null); // { x, y, key }
 
   // ── Floating dock panels ───────────────────────────────────────────────────
   const wayaiDock    = useDockPanel("wayai",    { w: 500, h: 620 });
@@ -1364,6 +1842,27 @@ export default function App() {
       setAccStatus(manager.getStatus());
     })();
   }, [manager]);
+
+  useEffect(()=>{
+    gitStatus(workspaceRoot || MOCK_ROOT).then(s => {
+      if (s?.branch) setGitBranch(s.branch);
+      const n = (s?.staged?.length||0) + (s?.unstaged?.length||0) + (s?.untracked?.length||0);
+      setGitChangeCount(n);
+    }).catch(()=>{});
+  }, [workspaceRoot]);
+
+  useEffect(() => {
+    const collect = () => {
+      const monaco = monacoRef.current;
+      if (!monaco) return;
+      try {
+        const markers = monaco.editor.getModelMarkers({});
+        setProblems(markers.filter(m => m.severity >= 4));
+      } catch {}
+    };
+    const id = setInterval(collect, 2000);
+    return () => clearInterval(id);
+  }, []);
 
   // Auto-detect providers on mount
   useEffect(()=>{
@@ -1768,20 +2267,36 @@ export default function App() {
           <ErrorBoundary key="files">
             <div style={{display:"flex",flexDirection:"column",height:"100%",overflow:"hidden"}}>
               <PanelHeader title="EXPLORER" onDetach={filesDock.undock}/>
-              <div style={{flex:1,overflow:"hidden"}}><FileExplorer onOpenFile={handleOpenFile} activeFile={activeTab} onRootChange={setWorkspaceRoot}/></div>
+              <div style={{flex:1,overflow:"hidden",minHeight:0}}><FileExplorer onOpenFile={handleOpenFile} activeFile={activeTab} onRootChange={setWorkspaceRoot}/></div>
+              {/* Outline section */}
+              <details className="outline-panel" open>
+                <summary className="outline-header">OUTLINE {symbolItems.length ? `(${symbolItems.length})` : ""}</summary>
+                <div className="outline-list">
+                  {symbolItems.length === 0
+                    ? <div className="outline-empty">{activeTab ? "No symbols found" : "No file open"}</div>
+                    : symbolItems.map((sym, i) => (
+                        <div key={i} className={`outline-item outline-${sym.kind}${currentSymbol === sym ? " outline-active" : ""}`}
+                          onClick={() => revealLine(sym.line)} title={`${sym.kind} — line ${sym.line}`}>
+                          <span className="outline-icon">{sym.kind === "class" ? "C" : sym.kind === "function" ? "ƒ" : sym.kind === "hook" ? "⚓" : "◇"}</span>
+                          <span className="outline-name">{sym.name}</span>
+                          <span className="outline-line">{sym.line}</span>
+                        </div>
+                      ))
+                  }
+                </div>
+              </details>
             </div>
           </ErrorBoundary>
         );
       case "search":
-        return <ErrorBoundary key="search"><SearchPanel code={code} theme={theme} setTheme={setTheme} fontSize={fontSize} setFontSize={setFontSize} wordWrap={wordWrap} setWordWrap={setWordWrap} lineNumbers={lineNumbers} setLineNumbers={setLineNumbers} minimapEnabled={minimapEnabled} setMinimapEnabled={setMinimapEnabled} tabSize={tabSize} setTabSize={setTabSize} onOpenSettings={()=>setSettingsOpen(true)}/></ErrorBoundary>;
+        return <ErrorBoundary key="search"><SearchPanel code={code} workspaceRoot={workspaceRoot} onOpenFile={handleOpenFile} revealLine={revealLine} theme={theme} setTheme={setTheme} fontSize={fontSize} setFontSize={setFontSize} wordWrap={wordWrap} setWordWrap={setWordWrap} lineNumbers={lineNumbers} setLineNumbers={setLineNumbers} minimapEnabled={minimapEnabled} setMinimapEnabled={setMinimapEnabled} tabSize={tabSize} setTabSize={setTabSize} onOpenSettings={()=>setSettingsOpen(true)}/></ErrorBoundary>;
       case "git":
         if (gitDock.detached) return <DockPlaceholder title="Source Control" onDock={gitDock.dock}/>;
         return (
           <ErrorBoundary key="git">
             <div style={{display:"flex",flexDirection:"column",height:"100%",overflow:"hidden"}}>
               <PanelHeader title="SOURCE CONTROL" onDetach={gitDock.undock}/>
-              <div style={{flex:1,overflow:"hidden"}}><GitPanel workspaceRoot={workspaceRoot}/></div>
-                          <div style={{flex:1,overflow:"hidden"}}><GitPanel workspaceRoot={workspaceRoot} manager={manager}/></div>
+              <div style={{flex:1,overflow:"hidden"}}><GitPanel workspaceRoot={workspaceRoot} manager={manager}/></div>
             </div>
           </ErrorBoundary>
         );
@@ -1799,7 +2314,7 @@ export default function App() {
           </ErrorBoundary>
         );
       case "chat":
-        return <ErrorBoundary key="chat"><ChatPanel manager={manager} status={accStatus} editorRef={editorRef} lang={lang} code={code} onProposeEdit={showInlineDiff}/></ErrorBoundary>;
+        return <ErrorBoundary key="chat"><ChatPanel manager={manager} status={accStatus} editorRef={editorRef} lang={lang} code={code} onProposeEdit={showInlineDiff} tabs={tabs} tabCode={tabCode}/></ErrorBoundary>;
       case "wayai":
         if (wayaiDock.detached) return <DockPlaceholder title="Way AI Agent" onDock={wayaiDock.dock}/>;
         return (
@@ -1844,6 +2359,15 @@ export default function App() {
     return items;
   }, [activeFileCode]);
 
+  const currentSymbol = useMemo(() => {
+    if (!symbolItems.length || !cursor.ln) return null;
+    let best = null;
+    for (const sym of symbolItems) {
+      if (sym.line <= cursor.ln) best = sym;
+    }
+    return best;
+  }, [symbolItems, cursor.ln]);
+
   const revealLine = useCallback((line) => {
     const editor = editorRef.current;
     if (!editor || !line) return;
@@ -1851,6 +2375,11 @@ export default function App() {
     editor.setPosition({ lineNumber: line, column: 1 });
     editor.focus();
   }, []);
+
+  const goToProblem = useCallback((filePath, line) => {
+    if (filePath) handleOpenFile({ path: filePath, name: filePath.split(/[\\/]/).pop() });
+    if (line) setTimeout(() => revealLine(line), filePath ? 300 : 0);
+  }, [revealLine]);
 
   const applyLayoutMode = useCallback((mode) => {
     setLayoutMode(mode);
@@ -1873,14 +2402,18 @@ export default function App() {
     }
   }, []);
 
+  // Keep refs in sync so startSideResize closure never captures stale widths
+  sideWidthRef.current = sideWidth;
+  secondarySideWidthRef.current = secondarySideWidth;
+
   const startSideResize = useCallback((which, e) => {
     e.preventDefault();
     dragStartRef.current = {
       x: e.clientX,
-      startWidth: which === "primary" ? sideWidth : secondarySideWidth,
+      startWidth: which === "primary" ? sideWidthRef.current : secondarySideWidthRef.current,
       side: which,
     };
-    const min = which === "primary" ? 220 : 220;
+    const min = 220;
     const max = which === "primary" ? 520 : 500;
 
     const onMove = (ev) => {
@@ -1895,11 +2428,21 @@ export default function App() {
     const onUp = () => {
       window.removeEventListener("mousemove", onMove);
       window.removeEventListener("mouseup", onUp);
+      sideResizeMoveRef.current = null;
+      sideResizeUpRef.current = null;
     };
 
+    sideResizeMoveRef.current = onMove;
+    sideResizeUpRef.current = onUp;
     window.addEventListener("mousemove", onMove);
     window.addEventListener("mouseup", onUp);
-  }, [sideWidth, secondarySideWidth]);
+  }, []);
+
+  // Cleanup resize listeners if component unmounts mid-drag
+  useEffect(() => () => {
+    if (sideResizeMoveRef.current) window.removeEventListener("mousemove", sideResizeMoveRef.current);
+    if (sideResizeUpRef.current) window.removeEventListener("mouseup", sideResizeUpRef.current);
+  }, []);
 
   useEffect(() => {
     const onDown = (e) => {
@@ -2049,23 +2592,39 @@ export default function App() {
     const onKey = (e) => {
       const key = e.key.toLowerCase();
       if (e.ctrlKey && e.shiftKey && key === "p") {
-        e.preventDefault();
-        setCmdOpen(true);
+        e.preventDefault(); setCmdOpen(true);
+      } else if (e.ctrlKey && key === "p" && !e.shiftKey) {
+        e.preventDefault(); setCmdOpen(true);
       } else if (e.ctrlKey && e.key === "`") {
-        e.preventDefault();
-        setPanelOpen(p => !p);
-        setPanelActive("terminal");
+        e.preventDefault(); setPanelOpen(p => !p); setPanelActive("terminal");
+      } else if (e.ctrlKey && key === "j") {
+        e.preventDefault(); setPanelOpen(p => !p);
+      } else if (e.ctrlKey && key === "b") {
+        e.preventDefault(); setSideOpen(p => !p);
       } else if (e.ctrlKey && key === "s") {
-        e.preventDefault();
-        saveActiveFile();
+        e.preventDefault(); saveActiveFile();
       } else if (e.shiftKey && e.altKey && key === "f") {
+        e.preventDefault(); formatActiveFile();
+      } else if (e.ctrlKey && key === "w") {
+        e.preventDefault(); if (activeTabRef.current) closeTab(activeTabRef.current);
+      } else if (e.ctrlKey && e.key === "Tab") {
         e.preventDefault();
-        formatActiveFile();
+        setTabs(ts => {
+          if (ts.length < 2) return ts;
+          const idx = ts.findIndex(t => t.key === activeTabRef.current);
+          const next = e.shiftKey ? (idx - 1 + ts.length) % ts.length : (idx + 1) % ts.length;
+          switchTab(ts[next].key);
+          return ts;
+        });
+      } else if (e.ctrlKey && key === "g") {
+        e.preventDefault();
+        const line = parseInt(prompt("Go to line:"), 10);
+        if (!isNaN(line)) revealLine(line);
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [saveActiveFile, formatActiveFile]);
+  }, [saveActiveFile, formatActiveFile, closeTab, switchTab, revealLine]);
 
   const prov        = PROVIDERS[accStatus.active?.provider];
   const accentColor = prov?.color || "#0078d4";
@@ -2163,7 +2722,6 @@ export default function App() {
       <FloatingPanel id="git" title="Source Control" icon={<Ic.Git/>}
         detached={gitDock.detached} pos={gitDock.pos} setPos={gitDock.setPos}
         size={gitDock.size} setSize={gitDock.setSize} onDock={gitDock.dock} minW={260} minH={300}>
-        <GitPanel workspaceRoot={workspaceRoot}/>
         <GitPanel workspaceRoot={workspaceRoot} manager={manager}/>
       </FloatingPanel>
 
@@ -2189,13 +2747,17 @@ export default function App() {
       <div className="workbench">
         {/* Activity Bar */}
         <div className="act-bar">
-          {ACTS_TOP.map(({id,Ico,title})=>(
-            <button key={id} title={title}
-              className={`act-btn ${activity===id&&sideOpen?"act-on":""}`}
-              onClick={()=>switchAct(id)}>
-              <Ico/>
-            </button>
-          ))}
+          {ACTS_TOP.map(({id,Ico,title})=>{
+            const badge = id==="git" ? gitChangeCount : id==="search" ? problems.filter(p=>p.severity===8).length : 0;
+            return (
+              <button key={id} title={title}
+                className={`act-btn ${activity===id&&sideOpen?"act-on":""}`}
+                onClick={()=>switchAct(id)}>
+                <Ico/>
+                {badge > 0 && <span className="act-badge">{badge > 99 ? "99+" : badge}</span>}
+              </button>
+            );
+          })}
           <div className="act-spacer"/>
           {ACTS_BTM.map(({id,Ico,title})=>(
             <button key={id} title={title}
@@ -2234,6 +2796,7 @@ export default function App() {
                 <div key={t.key}
                   className={`editor-tab ${activeTab===t.key?"tab-on":""} ${isDirty?"tab-dirty":""} ${t.isExtension?"tab-ext":""}`}
                   onClick={()=>switchTab(t.key)}
+                  onContextMenu={e=>{ e.preventDefault(); setTabCtxMenu({ x:e.clientX, y:e.clientY, key:t.key }); }}
                   title={t.key}
                   style={t.isExtension && activeTab===t.key ? { borderTopColor: "var(--accent)" } : undefined}
                 >
@@ -2249,6 +2812,50 @@ export default function App() {
             })}
           </div>
 
+          {/* Tab context menu */}
+          {tabCtxMenu && (
+            <div className="tab-ctx-overlay" onClick={()=>setTabCtxMenu(null)} onContextMenu={e=>e.preventDefault()}>
+              <div className="tab-ctx-menu" style={{ left: tabCtxMenu.x, top: tabCtxMenu.y }}
+                onClick={e=>e.stopPropagation()}>
+                {[
+                  { label:"Close",            action:()=>closeTab(tabCtxMenu.key) },
+                  { label:"Close Others",     action:()=>{ tabs.filter(t=>t.key!==tabCtxMenu.key).forEach(t=>closeTab(t.key)); } },
+                  { label:"Close Saved",      action:()=>{ tabs.filter(t=>!dirtyTabs[t.key]).forEach(t=>closeTab(t.key)); } },
+                  { label:"Close All",        action:()=>{ [...tabs].forEach(t=>closeTab(t.key)); } },
+                  null,
+                  { label:"Copy Path",        action:()=>navigator.clipboard?.writeText(tabCtxMenu.key) },
+                  { label:"Reveal in Explorer", action:()=>{ setActivity("files"); setSideOpen(true); } },
+                ].map((item, i) => item === null
+                  ? <div key={i} className="tab-ctx-sep"/>
+                  : <button key={i} className="tab-ctx-item" onClick={()=>{ item.action(); setTabCtxMenu(null); }}>{item.label}</button>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Breadcrumb bar */}
+          {activeTab && (
+            <div className="breadcrumb-bar">
+              {activeTab.replace(/\\/g, "/").split("/").filter(Boolean).map((seg, i, arr) => (
+                <span key={i} className="bc-seg">
+                  <span className={i === arr.length - 1 ? "bc-file" : "bc-dir"}
+                    onClick={i === arr.length - 1 ? undefined : () => { setActivity("files"); setSideOpen(true); }}
+                  >{seg}</span>
+                  {i < arr.length - 1 && <span className="bc-arrow">›</span>}
+                </span>
+              ))}
+              {currentSymbol && (
+                <>
+                  <span className="bc-arrow">›</span>
+                  <span className={`bc-sym bc-sym-${currentSymbol.kind}`}
+                    onClick={() => revealLine(currentSymbol.line)}
+                    title={`${currentSymbol.kind} — line ${currentSymbol.line}`}
+                  >{currentSymbol.name}</span>
+                </>
+              )}
+            </div>
+          )}
+
           {/* Editor */}
           <div className="editor-wrap">
             {tabs.length > 0 && activeTab ? (
@@ -2259,19 +2866,19 @@ export default function App() {
                   return (
                     <ExtensionPreviewTab
                       ext={ext}
-                      installed={!!ext?.id && extInstalled.includes(ext.id)}
-                      onInstall={(id) => {
-                        const current = (() => { try { return JSON.parse(localStorage.getItem("wayai_ext_installed_v1") || "[]"); } catch { return []; } })();
-                        if (!current.includes(id)) {
-                          const next = [...current, id];
+                      installed={!!ext?.id && extInstalled.some(e => e.id === ext.id)}
+                      onInstall={(installedExt) => {
+                        const current = (() => { try { return JSON.parse(localStorage.getItem("wayai_ext_installed_v1") || "[]").map(x => typeof x === "string" ? { id: x, name: x } : x); } catch { return []; } })();
+                        if (!current.some(x => x.id === installedExt.id)) {
+                          const next = [...current, installedExt];
                           localStorage.setItem("wayai_ext_installed_v1", JSON.stringify(next));
                           setExtInstalled(next);
                           window.dispatchEvent(new Event("wayai-ext-installed-changed"));
                         }
                       }}
                       onUninstall={(id) => {
-                        const current = (() => { try { return JSON.parse(localStorage.getItem("wayai_ext_installed_v1") || "[]"); } catch { return []; } })();
-                        const next = current.filter(x => x !== id);
+                        const current = (() => { try { return JSON.parse(localStorage.getItem("wayai_ext_installed_v1") || "[]").map(x => typeof x === "string" ? { id: x, name: x } : x); } catch { return []; } })();
+                        const next = current.filter(x => x.id !== id);
                         localStorage.setItem("wayai_ext_installed_v1", JSON.stringify(next));
                         setExtInstalled(next);
                         window.dispatchEvent(new Event("wayai-ext-installed-changed"));
@@ -2287,7 +2894,13 @@ export default function App() {
                     value={code}
                     theme={theme}
                     onChange={handleCodeChange}
-                    onMount={(e, monaco) => { editorRef.current = e; monacoRef.current = monaco; setupInlineCompletions(monaco); }}
+                    onMount={(e, monaco) => {
+                      editorRef.current = e; monacoRef.current = monaco; setupInlineCompletions(monaco);
+                      e.onDidChangeCursorPosition(ev => {
+                        const p = ev.position;
+                        setCursor({ ln: p.lineNumber, col: p.column });
+                      });
+                    }}
                     options={{
                       fontSize,
                       fontFamily: "'JetBrains Mono','Cascadia Code',Consolas,monospace",
@@ -2359,6 +2972,8 @@ export default function App() {
             tabs={tabs}
             dirtyTabs={dirtyTabs}
             outputLines={outputLines}
+            problems={problems}
+            onGoToProblem={goToProblem}
           />
         </div>
 
@@ -2366,156 +2981,19 @@ export default function App() {
           <>
             <div className="side-resizer secondary" title="Drag to resize" onMouseDown={(e)=>startSideResize("secondary", e)} />
             <div className="rsb-wrap" style={{ width: secondarySideWidth, minWidth: secondarySideWidth, maxWidth: secondarySideWidth }}>
-              <div className="rsb-act">
-                {[
-                  { id: "chat", Icon: Ic.Chat, tip: "AI Chat" },
-                  { id: "wayai", Icon: Ic.WayAI, tip: "Way AI Agent" },
-                  { id: "installed", Icon: Ic.Ext, tip: "Installed Apps" },
-                  { id: "accounts", Icon: Ic.Accounts, tip: "Accounts" },
-                  { id: "outline", Icon: Ic.Files, tip: "Outline" },
-                ].map(({ id, Icon, tip }) => (
-                  <button key={id} title={tip} className={`rsb-act-btn${rightPanel===id ? " rsb-act-on" : ""}`} onClick={()=>setRightPanel(id)}>
-                    <Icon />
-                    <span className="rsb-act-tooltip">{tip}</span>
-                  </button>
-                ))}
-                <div className="rsb-act-spacer" />
-                <button className="rsb-act-btn rsb-act-close" title="Close" onClick={()=>setSecondarySideOpen(false)}>
+              <div className="rsb-chat-header">
+                <div className="rsb-chat-title">
+                  <Ic.Chat />
+                  <span>AI Chat</span>
+                </div>
+                <button className="rsb-chat-close" title="Close" onClick={()=>setSecondarySideOpen(false)}>
                   <Ic.X />
                 </button>
               </div>
-
-              <div className="rsb-body">
-                {rightPanel === "chat" && (
-                  <div className="rsb-panel">
-                    <div className="rsb-hd"><Ic.Chat /><span>AI Chat</span></div>
-                    <ErrorBoundary key="rsb-chat">
-                      <ChatPanel manager={manager} status={accStatus} editorRef={editorRef} lang={lang} code={code} onProposeEdit={showInlineDiff} />
-                    </ErrorBoundary>
-                  </div>
-                )}
-
-                {rightPanel === "wayai" && (
-                  <div className="rsb-panel">
-                    <div className="rsb-hd"><Ic.WayAI /><span>Way AI Agent</span></div>
-                    <ErrorBoundary key="rsb-wayai">
-                      <WayAITab manager={manager} accStatus={accStatus} editorRef={editorRef} code={code} lang={lang} projectRoot={workspaceRoot} activeFile={activeTab} openFiles={tabs.map(t=>t.key)} />
-                    </ErrorBoundary>
-                  </div>
-                )}
-
-                {rightPanel === "installed" && (
-                  <div className="rsb-panel">
-                    <div className="rsb-hd"><Ic.Ext /><span>Installed Apps</span><span className="rsb-badge">{extInstalled.length}</span></div>
-                    {extInstalled.length === 0 ? (
-                      <div className="rsb-empty">
-                        <Ic.Ext />
-                        <span>No extensions installed</span>
-                        <button className="btn-icon-sm" onClick={()=>{ setActivity("ext"); setSideOpen(true); }}>Browse Extensions</button>
-                      </div>
-                    ) : (
-                      <div className="rsb-installed-list">
-                        {extInstalled.map(ext => (
-                          <button key={ext.id} className="rsb-ext-card" onClick={()=>handleOpenExtension(ext)}>
-                            <div className="rsb-ext-icon" style={{ background: `linear-gradient(135deg,${ext.color || "#1177bb"},${ext.color2 || "#23235b"})` }}>
-                              {ext.icon
-                                ? <img src={ext.icon} alt="" onError={e=>{ e.currentTarget.src = "/brand-logo.svg"; }} />
-                                : <span className="rsb-ext-fallback">{(ext.displayName || ext.name || "E").slice(0, 1).toUpperCase()}</span>}
-                            </div>
-                            <div className="rsb-ext-info">
-                              <span className="rsb-ext-name">{ext.displayName || ext.name || ext.id}</span>
-                              <span className="rsb-ext-ns">{ext.namespace || ext.publisher || ""}</span>
-                            </div>
-                            <span className="rsb-ext-open">↗</span>
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {rightPanel === "accounts" && (
-                  <div className="rsb-panel">
-                    <div className="rsb-hd"><Ic.Accounts /><span>Accounts</span><span className="rsb-badge">{accStatus.accounts?.filter(a=>a.status === "active").length || 0} active</span></div>
-                    <div className="rsb-accounts-list">
-                      {(accStatus.accounts || []).map(acc => {
-                        const accountProvider = PROVIDERS[acc.provider] || {};
-                        const isActive = acc.id === accStatus.activeId;
-                        return (
-                          <div key={acc.id} className={`rsb-acc-card${isActive ? " rsb-acc-active" : ""}`} onClick={()=>manager.setActive(acc.id)}>
-                            <div className="rsb-acc-dot" style={{ color: accountProvider.color || "var(--t3)" }}>{accountProvider.local ? "○" : "●"}</div>
-                            <div className="rsb-acc-info">
-                              <span className="rsb-acc-label">{acc.label}</span>
-                              <span className="rsb-acc-model">{acc.model}</span>
-                            </div>
-                            <div className="rsb-acc-right">
-                              <span className={`rsb-acc-status ${acc.status}`}>{acc.status}</span>
-                              {isActive && <span className="rsb-acc-check">✓</span>}
-                            </div>
-                          </div>
-                        );
-                      })}
-                      {!accStatus.accounts?.length && (
-                        <div className="rsb-empty">
-                          <Ic.Accounts />
-                          <span>No accounts</span>
-                          <button className="btn-icon-sm" onClick={()=>{ setActivity("accounts"); setSideOpen(true); }}>Add Account</button>
-                        </div>
-                      )}
-                    </div>
-                    <button className="rsb-manage-btn" onClick={()=>{ setActivity("accounts"); setSideOpen(true); }}>Manage Accounts →</button>
-                  </div>
-                )}
-
-                {rightPanel === "outline" && (
-                  <div className="rsb-panel">
-                    <div className="rsb-hd"><Ic.Files /><span>Outline</span></div>
-                    <div className="rsb-block">
-                      <div className="rsb-block-hd">Open Files</div>
-                      <div className="rsb-list">
-                        {tabs.length ? tabs.map(t => (
-                          <button key={t.key} className={`rsb-list-item${activeTab===t.key ? " on" : ""}`} onClick={()=>switchTab(t.key)}>
-                            <span className="rsb-list-dot" style={{ color: LANG_DOT[t.lang] || "#666" }}>●</span>
-                            {t.name}
-                          </button>
-                        )) : <div className="rsb-empty-inline">No files open</div>}
-                      </div>
-                    </div>
-                    {symbolItems.length > 0 && (
-                      <div className="rsb-block">
-                        <div className="rsb-block-hd">Symbols</div>
-                        <div className="rsb-list mono">
-                          {symbolItems.map((s, idx) => (
-                            <button key={`${s.name}:${s.line}:${idx}`} className="rsb-list-item" onClick={()=>revealLine(s.line)}>
-                              <span className="rsb-sym-kind">{s.kind}</span>
-                              <span className="rsb-sym-name">{s.name}</span>
-                              <span className="rsb-sym-line">L{s.line}</span>
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                    <div className="rsb-block">
-                      <div className="rsb-block-hd">Quick Actions</div>
-                      <div className="rsb-actions">
-                        <button className="rsb-action-btn" onClick={()=>runAiEdit("Fix selected code","Fix bugs and correctness issues in this code")}>Fix</button>
-                        <button className="rsb-action-btn" onClick={()=>runAiEdit("Refactor selected code","Refactor this code for clarity, maintainability, and best practices")}>Refactor</button>
-                        <button className="rsb-action-btn" onClick={()=>runAiEdit("Comment selected code","Add concise useful comments to this code")}>Comment</button>
-                      </div>
-                      <div className="rsb-actions" style={{ marginTop: 6 }}>
-                        <button className="rsb-action-btn" onClick={()=>applyLayoutMode("default")}>Default</button>
-                        <button className="rsb-action-btn" onClick={()=>applyLayoutMode("focus")}>Focus</button>
-                        <button className="rsb-action-btn" onClick={()=>applyLayoutMode("zen")}>Zen</button>
-                      </div>
-                    </div>
-                    <div className="rsb-file-meta">
-                      <div className="rsb-meta-row"><span>File</span><span>{activeTab ? activeTab.split(/[\\/]/).pop() : "-"}</span></div>
-                      <div className="rsb-meta-row"><span>Lang</span><span>{lang}</span></div>
-                      <div className="rsb-meta-row"><span>Theme</span><span>{theme.replace("vs-", "")}</span></div>
-                      <div className="rsb-meta-row"><span>Font</span><span>{fontSize}px</span></div>
-                    </div>
-                  </div>
-                )}
+              <div className="rsb-chat-body">
+                <ErrorBoundary key="rsb-chat">
+                  <ChatPanel manager={manager} status={accStatus} editorRef={editorRef} lang={lang} code={code} onProposeEdit={showInlineDiff} tabs={tabs} tabCode={tabCode}/>
+                </ErrorBoundary>
               </div>
             </div>
           </>
@@ -2590,7 +3068,15 @@ export default function App() {
 
       <div className="statusbar" style={{ background: accentColor }}>
         <div className="sb-left">
-          <span className="sb-item">main</span>
+          <span className="sb-item">⎇ {gitBranch}</span>
+          <button className="sb-item sb-problems-btn" onClick={()=>{ setPanelOpen(true); setPanelActive("problems"); }}>
+            <span className={problems.filter(p=>p.severity===8).length > 0 ? "sb-err" : "sb-ok"}>
+              ⊘ {problems.filter(p=>p.severity===8).length}
+            </span>
+            <span className={problems.filter(p=>p.severity===4).length > 0 ? "sb-warn" : "sb-ok"}>
+              ⚠ {problems.filter(p=>p.severity===4).length}
+            </span>
+          </button>
           <span className="sb-item">
             {(accStatus.accounts || []).filter(a=>a.status === "limited").length > 0
               ? `${(accStatus.accounts || []).filter(a=>a.status === "limited").length} limited`
@@ -2599,9 +3085,10 @@ export default function App() {
           {detected.length > 0 && <span className="sb-item">tools {detected.map(d=>d.id).join(", ")}</span>}
         </div>
         <div className="sb-right">
+          <span className="sb-item">Ln {cursor.ln}, Col {cursor.col}</span>
           <span className="sb-item">{lang}</span>
           <span className="sb-item">UTF-8</span>
-          <span className="sb-item">Spaces: 2</span>
+          <span className="sb-item">Spaces: {tabSize}</span>
           {accStatus.active && (
             <span className="sb-item sb-acc">
               {prov?.icon} {accStatus.active.label} · {(accStatus.accounts || []).filter(a=>a.status === "active").length}/{(accStatus.accounts || []).length}

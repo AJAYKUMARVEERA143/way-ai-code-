@@ -245,14 +245,29 @@
 .expt-readme-wrap::-webkit-scrollbar-thumb { background: var(--bg3); border-radius: 2px; }
 
 .expt-readme {
-  font-size: 13px;
+  font-size: 13.5px;
   color: var(--t1);
-  line-height: 1.7;
-  white-space: pre-wrap;
+  line-height: 1.75;
   word-break: break-word;
   font-family: var(--ui);
-  margin: 0;
 }
+
+/* Markdown rendered elements */
+.expt-readme .md-h1 { font-size: 22px; font-weight: 700; color: var(--t1); margin: 20px 0 10px; border-bottom: 1px solid var(--b1); padding-bottom: 6px; }
+.expt-readme .md-h2 { font-size: 18px; font-weight: 700; color: var(--t1); margin: 18px 0 8px; border-bottom: 1px solid var(--b1); padding-bottom: 4px; }
+.expt-readme .md-h3 { font-size: 15px; font-weight: 700; color: var(--t1); margin: 14px 0 6px; }
+.expt-readme .md-h4, .expt-readme .md-h5, .expt-readme .md-h6 { font-size: 13px; font-weight: 700; color: var(--t1); margin: 10px 0 4px; }
+.expt-readme .md-p  { margin: 6px 0; }
+.expt-readme .md-list { margin: 6px 0 6px 18px; padding: 0; }
+.expt-readme .md-list li { margin: 3px 0; }
+.expt-readme .md-hr { border: none; border-top: 1px solid var(--b1); margin: 16px 0; }
+.expt-readme .md-bq { border-left: 3px solid var(--accent2); margin: 8px 0; padding: 4px 12px; color: var(--t2); background: var(--bg2); border-radius: 0 3px 3px 0; }
+.expt-readme .md-code-block { background: var(--bg2); border: 1px solid var(--b1); border-radius: 4px; padding: 12px 14px; margin: 10px 0; overflow-x: auto; font-size: 12px; font-family: 'JetBrains Mono', Consolas, monospace; line-height: 1.55; color: var(--t1); white-space: pre; }
+.expt-readme .md-ic { background: var(--bg2); border: 1px solid var(--b1); border-radius: 3px; padding: 1px 5px; font-size: 12px; font-family: 'JetBrains Mono', Consolas, monospace; color: var(--accent2); }
+.expt-readme .md-link { color: var(--accent2); text-decoration: none; }
+.expt-readme .md-link:hover { text-decoration: underline; }
+.expt-version { color: var(--t3); font-size: 11px; }
+.expt-autoupdate { display: flex; align-items: center; gap: 4px; font-size: 12px; color: var(--t2); cursor: pointer; }
 
 .expt-loading { font-size: 13px; color: var(--t3); padding: 20px 0; }
 
@@ -323,3 +338,15 @@
 
 .expt-placeholder-icon { font-size: 28px; opacity: .4; }
 .expt-placeholder-sub { font-size: 12px; color: var(--t3); }
+
+/* ── FEATURES tab ── */
+.expt-features { padding: 20px 24px; display: flex; flex-direction: column; gap: 20px; }
+.expt-feat-section {}
+.expt-feat-title { font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--t2); margin-bottom: 8px; }
+.expt-feat-tags { display: flex; flex-wrap: wrap; gap: 5px; }
+.expt-feat-tag { padding: 3px 10px; background: var(--bg2); border: 1px solid var(--b1); border-radius: 10px; font-size: 11px; color: var(--t2); }
+.expt-feat-tag-cat { background: rgba(0,120,212,.12); border-color: rgba(0,120,212,.3); color: var(--accent2); }
+.expt-feat-stat-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+.expt-feat-stat { background: var(--bg2); border: 1px solid var(--b1); border-radius: 6px; padding: 10px 12px; display: flex; flex-direction: column; gap: 3px; }
+.expt-feat-stat-n { font-size: 16px; font-weight: 700; color: var(--t1); }
+.expt-feat-stat-l { font-size: 11px; color: var(--t3); }

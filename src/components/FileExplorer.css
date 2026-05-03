@@ -56,6 +56,7 @@
 .fe-icon  { display: flex; align-items: center; flex-shrink: 0; margin-right: 2px; }
 .fe-name  { flex: 1; overflow: hidden; text-overflow: ellipsis; }
 .fe-size  { font-size: 10px; color: var(--t3); margin-left: auto; padding-left: 6px; flex-shrink: 0; font-family: var(--mono); }
+.fe-git-dec { font-size: 10px; font-weight: 700; flex-shrink: 0; padding-left: 4px; opacity: .9; }
 
 .fe-loading { font-size: 11px; color: var(--t3); padding: 4px 0 4px 8px; }
 

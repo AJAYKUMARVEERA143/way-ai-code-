@@ -4,7 +4,7 @@ import ExtensionDetail from "./ExtensionDetail.jsx";
 import {
   searchExt, loadFeatured, getExtDetail,
   loadInstalled, addInstalled, removeInstalled,
-  CATEGORIES,
+  checkForUpdates, CATEGORIES,
 } from "./ExtensionStore.js";
 import "./ExtensionsPanel.css";
 
@@ -18,6 +18,8 @@ export default function ExtensionsPanel({ onOpenExtension }) {
   const [loading,   setLoad]   = useState(false);
   const [error,     setError]  = useState(null);
   const [category,  setCat]    = useState("All");
+  const [updates,   setUpdates] = useState({});   // { [id]: latestExt }
+  const [checkingUpdates, setCheckingUp] = useState(false);
   const timer = useRef(null);
 
   // Load featured on mount
@@ -35,6 +37,17 @@ export default function ExtensionsPanel({ onOpenExtension }) {
     window.addEventListener("wayai-ext-installed-changed", onInstalledChanged);
     return () => window.removeEventListener("wayai-ext-installed-changed", onInstalledChanged);
   }, []);
+
+  // Check for updates whenever installed list changes
+  const doCheckUpdates = useCallback(async (list) => {
+    if (!list?.length) return;
+    setCheckingUp(true);
+    try { setUpdates(await checkForUpdates(list)); }
+    catch {}
+    finally { setCheckingUp(false); }
+  }, []);
+
+  useEffect(() => { doCheckUpdates(installed); }, [installed, doCheckUpdates]);
 
   // Debounced search
   const doSearch = useCallback((q) => {
@@ -56,9 +69,9 @@ export default function ExtensionsPanel({ onOpenExtension }) {
     setDetail(d);
   }, []);
 
-  const handleInstall = useCallback((id) => {
+  const handleInstall = useCallback((ext) => {
     setInst(p => {
-      const next = addInstalled(id, p);
+      const next = addInstalled(ext, p);
       window.dispatchEvent(new Event("wayai-ext-installed-changed"));
       return next;
     });
@@ -72,17 +85,31 @@ export default function ExtensionsPanel({ onOpenExtension }) {
     });
   }, []);
 
+  const handleUpdate = useCallback((latestExt) => {
+    setInst(p => {
+      const next = addInstalled(latestExt, p);
+      window.dispatchEvent(new Event("wayai-ext-installed-changed"));
+      return next;
+    });
+    setUpdates(u => { const n={...u}; delete n[latestExt.id]; return n; });
+  }, []);
+
+  const handleUpdateAll = useCallback(() => {
+    Object.values(updates).forEach(latestExt => handleUpdate(latestExt));
+  }, [updates, handleUpdate]);
+
+  const updateCount = Object.keys(updates).length;
   const showSearch = query.trim().length > 0;
   const shown      = showSearch
     ? results
     : featured.filter(e => category === "All" || e.categories?.includes(category));
-  const installedExts = featured.filter(e => installed.includes(e.id));
+  const installedExts = installed.filter(e => e && e.id);
 
   const cardOf = (ext) => (
     <ExtensionCard
       key={ext.id}
       ext={ext}
-      installed={installed.includes(ext.id)}
+      installed={installed.some(e => e.id === ext.id)}
       selected={selected === ext.id}
       onClick={handleSelect}
       onInstall={handleInstall}
@@ -94,7 +121,7 @@ export default function ExtensionsPanel({ onOpenExtension }) {
     <ExtensionCard
       key={ext.id}
       ext={ext}
-      installed={installed.includes(ext.id)}
+      installed={installed.some(e => e.id === ext.id)}
       selected={selected === ext.id}
       onClick={(e) => {
         handleSelect(e);
@@ -102,6 +129,8 @@ export default function ExtensionsPanel({ onOpenExtension }) {
       }}
       onInstall={handleInstall}
       onUninstall={handleUninstall}
+      updateAvailable={!!updates[ext.id]}
+      onUpdate={() => handleUpdate(updates[ext.id])}
     />
   );
 
@@ -168,7 +197,19 @@ export default function ExtensionsPanel({ onOpenExtension }) {
               {/* Installed */}
               {installedExts.length > 0 && (
                 <details open>
-                  <summary className="extp-sec-head">INSTALLED ({installedExts.length})</summary>
+                  <summary className="extp-sec-head">
+                    INSTALLED ({installedExts.length})
+                    {updateCount > 0 && (
+                      <button
+                        className="extp-update-all"
+                        title={`Update all (${updateCount})`}
+                        onClick={e => { e.preventDefault(); handleUpdateAll(); }}
+                      >
+                        ↑ {updateCount}
+                      </button>
+                    )}
+                    {checkingUpdates && <span className="extp-checking"> ⟳</span>}
+                  </summary>
                   {installedExts.map(installedCardOf)}
                 </details>
               )}
@@ -204,7 +245,7 @@ export default function ExtensionsPanel({ onOpenExtension }) {
         <div className="extp-detail">
           <ExtensionDetail
             ext={detail}
-            installed={installed.includes(detail.id)}
+            installed={installed.some(e => e.id === detail.id)}
             onInstall={handleInstall}
             onUninstall={handleUninstall}
             onClose={() => { setSel(null); setDetail(null); }}

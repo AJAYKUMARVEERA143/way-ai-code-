@@ -9,7 +9,7 @@ import {
   IS_TAURI, readDir, readFile, createFile, deleteEntry,
   renamePath, createDir, getHomeDir, searchFiles, openFolderDialog,
   formatSize, pathJoin, pathDir, pathName, pathExt,
-  langFromPath, langColor, MOCK_ROOT, normPath,
+  langFromPath, langColor, MOCK_ROOT, normPath, gitStatus,
 } from "../lib/fs.js";
 
 const WORKSPACE_STORAGE_KEY = "wayai_workspace_root_v1";
@@ -31,8 +31,8 @@ function assertInWorkspace(path, root) {
 }
 
 // ── Icons ─────────────────────────────────────────────────────────────────────
-const FolOpen = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/><polyline points="2 10 22 10"/></svg>;
-const FolCls  = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>;
+const FolOpen = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/><line x1="2" y1="10" x2="22" y2="10"/><polyline points="8 14 12 18 16 14"/></svg>;
+const FolCls  = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/><polyline points="8 12 12 16 16 12"/></svg>;
 const FileIc  = () => <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></svg>;
 const ChevR   = () => <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="9 18 15 12 9 6"/></svg>;
 const ChevD   = () => <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="6 9 12 15 18 9"/></svg>;
@@ -92,8 +92,10 @@ function InlineInput({ defaultValue="", placeholder="", onConfirm, onCancel }) {
   );
 }
 
+const GIT_DEC_COLOR = { M:"#e8a54a", U:"#73c991", A:"#73c991", D:"#f44747", S:"#4ec9b0" };
+
 // ── Tree node ─────────────────────────────────────────────────────────────────
-function TreeNode({ entry, depth, active, expanded, loading, onSelect, onToggle, onCtxMenu, onRename, renaming, creating, onCreateConfirm, onCreateCancel }) {
+function TreeNode({ entry, depth, active, expanded, loading, gitDec, onSelect, onToggle, onCtxMenu, onRename, renaming, creating, onCreateConfirm, onCreateCancel }) {
   const pad = 6 + depth * 16;
   const ext  = pathExt(entry.path);
   const dotColor = entry.is_dir ? "#dcb67a" : langColor(ext);
@@ -115,9 +117,10 @@ function TreeNode({ entry, depth, active, expanded, loading, onSelect, onToggle,
         </span>
         {renaming
           ? <InlineInput defaultValue={entry.name} onConfirm={n=>onRename(entry,n)} onCancel={()=>onRename(null,null)}/>
-          : <span className="fe-name">{entry.name}</span>
+          : <span className="fe-name" style={gitDec ? { color: GIT_DEC_COLOR[gitDec] || "inherit" } : {}}>{entry.name}</span>
         }
         {!entry.is_dir && entry.size > 0 && <span className="fe-size">{formatSize(entry.size)}</span>}
+        {gitDec && <span className="fe-git-dec" style={{ color: GIT_DEC_COLOR[gitDec] }}>{gitDec}</span>}
       </div>
 
       {/* Children */}
@@ -158,6 +161,7 @@ export default function FileExplorer({ onOpenFile, activeFile, onRootChange }) {
   const [searchRes,setSearchRes]  = useState(null);
   const [searchLoading,setSL]     = useState(false);
   const [error,   setError]       = useState(null);
+  const [gitDecor, setGitDecor]   = useState({});  // relPath → "M"|"U"|"A"|"D"|"S"
   const searchTimerRef = useRef(null);
 
   // Load a directory
@@ -307,6 +311,24 @@ export default function FileExplorer({ onOpenFile, activeFile, onRootChange }) {
 
   useEffect(() => () => clearTimeout(searchTimerRef.current), []);
 
+  // Git decorations
+  useEffect(() => {
+    if (!rootPath) return;
+    const fetch = async () => {
+      try {
+        const s = await gitStatus(rootPath);
+        const map = {};
+        for (const f of (s?.staged   || [])) map[normPath(f.path)] = "S";
+        for (const f of (s?.unstaged || [])) map[normPath(f.path)] = "M";
+        for (const f of (s?.untracked|| [])) map[normPath(f.path)] = "U";
+        setGitDecor(map);
+      } catch { setGitDecor({}); }
+    };
+    fetch();
+    const id = setInterval(fetch, 12000);
+    return () => clearInterval(id);
+  }, [rootPath]);
+
   const refresh = useCallback(async () => {
     if (!rootPath) return;
     setTree({});
@@ -318,6 +340,20 @@ export default function FileExplorer({ onOpenFile, activeFile, onRootChange }) {
   }, [rootPath]);
 
   // Recursive renderer
+  const getGitDec = (entryPath) => {
+    const norm = normPath(entryPath);
+    for (const [rel, dec] of Object.entries(gitDecor)) {
+      if (norm.endsWith('/' + rel) || norm === rel) return dec;
+    }
+    return null;
+  };
+
+  const hasGitDecInDir = (dirPath) => {
+    const norm = normPath(dirPath);
+    return Object.keys(gitDecor).some(rel => normPath(rel).startsWith(norm.split('/').pop() + '/') ||
+      normPath(norm + '/' + rel).length > norm.length);
+  };
+
   const renderEntries = (entries, depth = 0) => {
     return entries.map(entry => {
       const key  = entry.path;
@@ -332,6 +368,7 @@ export default function FileExplorer({ onOpenFile, activeFile, onRootChange }) {
             active={activeFile === entry.path}
             expanded={isExpanded}
             loading={loading[key]}
+            gitDec={getGitDec(entry.path)}
             renaming={renaming === entry.path}
             creating={creating}
             onSelect={handleSelect}

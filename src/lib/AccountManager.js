@@ -5,16 +5,16 @@
  */
 
 export const PROVIDERS = {
-  chatgpt:    { label:"ChatGPT",    icon:"⬛", color:"#10a37f", local:false, costPer1k:0.002,  defaultModel:"gpt-4o-mini",              baseUrl:"https://api.openai.com/v1",              pingPath:null },
-  claude:     { label:"Claude",     icon:"🟠", color:"#d97706", local:false, costPer1k:0.003,  defaultModel:"claude-haiku-4-5",          baseUrl:null,                                     pingPath:null },
-  copilot:    { label:"Copilot",    icon:"⬡",  color:"#6e40c9", local:false, costPer1k:0.002,  defaultModel:"gpt-4o",                    baseUrl:"https://api.githubcopilot.com",           pingPath:null },
-  gemini:     { label:"Gemini",     icon:"◈",  color:"#4285f4", local:false, costPer1k:0.0005, defaultModel:"gemini-2.0-flash",           baseUrl:null,                                     pingPath:null },
-  groq:       { label:"Groq",       icon:"▲",  color:"#f59e0b", local:false, costPer1k:0.0001, defaultModel:"llama-3.3-70b-versatile",    baseUrl:"https://api.groq.com/openai/v1",          pingPath:null },
-  mistral:    { label:"Mistral",    icon:"🌬", color:"#ff7000", local:false, costPer1k:0.0001, defaultModel:"devstral-latest",            baseUrl:"https://api.mistral.ai/v1",              pingPath:null },
-  deepseek:   { label:"DeepSeek",   icon:"🔮", color:"#6366f1", local:false, costPer1k:0.0002, defaultModel:"deepseek-chat",              baseUrl:"https://api.deepseek.com/v1",            pingPath:null },
-  openrouter: { label:"OpenRouter", icon:"🛣",  color:"#ec4899", local:false, costPer1k:0.001,  defaultModel:"meta-llama/llama-3.1-8b-instruct:free", baseUrl:"https://openrouter.ai/api/v1", pingPath:null },
-  ollama:     { label:"Ollama",     icon:"○",  color:"#7c3aed", local:true,  costPer1k:0,      defaultModel:"llama3.2",                  baseUrl:"http://localhost:11434",                  pingPath:"/api/tags" },
-  lmstudio:   { label:"LM Studio",  icon:"□",  color:"#0ea5e9", local:true,  costPer1k:0,      defaultModel:"local-model",               baseUrl:"http://localhost:1234/v1",                pingPath:"/models" },
+  chatgpt:    { label:"ChatGPT",    icon:"⬛", color:"#10a37f", local:false, costPer1k:0.002,  defaultModel:"gpt-4o-mini",              baseUrl:"https://api.openai.com/v1",              pingPath:null, signInUrl:"https://platform.openai.com/api-keys",         apiKeyHint:"sk-...",     models:["gpt-4o","gpt-4o-mini","gpt-4.1","gpt-4-turbo","o1-mini","o3-mini"],                                             hint:"Create a key at OpenAI Platform — pay-as-you-go pricing." },
+  claude:     { label:"Claude",     icon:"🟠", color:"#d97706", local:false, costPer1k:0.003,  defaultModel:"claude-haiku-4-5",          baseUrl:null,                                     pingPath:null, signInUrl:"https://console.anthropic.com/settings/keys",   apiKeyHint:"sk-ant-...", models:["claude-opus-4-7","claude-sonnet-4-6","claude-haiku-4-5-20251001"],                                               hint:"Get a key from Anthropic Console. Free tier available." },
+  copilot:    { label:"Copilot",    icon:"⬡",  color:"#6e40c9", local:false, costPer1k:0.002,  defaultModel:"gpt-4o",                    baseUrl:"https://api.githubcopilot.com",           pingPath:null, signInUrl:"https://github.com/settings/tokens",            apiKeyHint:"ghp_...",    models:["gpt-4o","gpt-4o-mini","o1-mini","claude-3.5-sonnet"],                                                           hint:"Requires an active GitHub Copilot subscription." },
+  gemini:     { label:"Gemini",     icon:"◈",  color:"#4285f4", local:false, costPer1k:0.0005, defaultModel:"gemini-2.0-flash",           baseUrl:null,                                     pingPath:null, signInUrl:"https://aistudio.google.com/app/apikey",        apiKeyHint:"AIza...",    models:["gemini-2.5-pro","gemini-2.0-flash","gemini-1.5-pro","gemini-1.5-flash"],                                         hint:"Free API keys available from Google AI Studio." },
+  groq:       { label:"Groq",       icon:"▲",  color:"#f59e0b", local:false, costPer1k:0.0001, defaultModel:"llama-3.3-70b-versatile",    baseUrl:"https://api.groq.com/openai/v1",          pingPath:null, signInUrl:"https://console.groq.com/keys",                 apiKeyHint:"gsk_...",    models:["llama-3.3-70b-versatile","llama-3.1-8b-instant","mixtral-8x7b-32768","gemma2-9b-it"],                             hint:"Extremely fast inference. Free tier with generous limits." },
+  mistral:    { label:"Mistral",    icon:"🌬", color:"#ff7000", local:false, costPer1k:0.0001, defaultModel:"devstral-latest",            baseUrl:"https://api.mistral.ai/v1",              pingPath:null, signInUrl:"https://console.mistral.ai/api-keys",           apiKeyHint:"...",        models:["devstral-latest","mistral-large-latest","codestral-latest","mistral-medium-latest","mistral-small-latest"],     hint:"European AI provider with strong coding models." },
+  deepseek:   { label:"DeepSeek",   icon:"🔮", color:"#6366f1", local:false, costPer1k:0.0002, defaultModel:"deepseek-chat",              baseUrl:"https://api.deepseek.com/v1",            pingPath:null, signInUrl:"https://platform.deepseek.com/api_keys",        apiKeyHint:"sk-...",     models:["deepseek-chat","deepseek-coder","deepseek-reasoner"],                                                           hint:"Very affordable. DeepSeek-R1 for reasoning tasks." },
+  openrouter: { label:"OpenRouter", icon:"🛣",  color:"#ec4899", local:false, costPer1k:0.001,  defaultModel:"meta-llama/llama-3.1-8b-instruct:free", baseUrl:"https://openrouter.ai/api/v1", pingPath:null, signInUrl:"https://openrouter.ai/keys",              apiKeyHint:"sk-or-...",  models:["meta-llama/llama-3.1-8b-instruct:free","google/gemma-2-9b-it:free","deepseek/deepseek-chat","anthropic/claude-3.5-sonnet"], hint:"Access 100+ models via one API key. Free models available." },
+  ollama:     { label:"Ollama",     icon:"○",  color:"#7c3aed", local:true,  costPer1k:0,      defaultModel:"llama3.2",                  baseUrl:"http://localhost:11434",                  pingPath:"/api/tags",  signInUrl:null, apiKeyHint:"(no key needed)", models:["llama3.2","codellama","mistral","phi3","gemma2","qwen2.5-coder"],   hint:"Run models 100% locally. Install from ollama.com." },
+  lmstudio:   { label:"LM Studio",  icon:"□",  color:"#0ea5e9", local:true,  costPer1k:0,      defaultModel:"local-model",               baseUrl:"http://localhost:1234/v1",                pingPath:"/models",    signInUrl:null, apiKeyHint:"(no key needed)", models:["local-model"],                                                     hint:"Desktop app for running local LLMs. Free download." },
 };
 
 const LIMIT_PATTERNS = [
@@ -346,6 +346,55 @@ export class AccountManager {
       if(!line.startsWith("data: ")) return "";
       try{const d=JSON.parse(line.slice(6));return d.type==="content_block_delta"?d.delta?.text||"":" ";}catch{return "";}
     },signal);
+  }
+
+  // Test a config object without permanently adding it
+  async testAccountConfig({ provider: pid, apiKey, model, baseUrl }) {
+    const provider = PROVIDERS[pid] || {};
+    const account = { id: "__test__", provider: pid, apiKey, model: model || provider.defaultModel, baseUrl, status: "active", errors: 0, _streak: 0 };
+    const fail = (message) => ({ ok: false, message });
+    if (!provider.local && !apiKey) return fail(`${provider.label || pid} key is missing`);
+    try {
+      if (provider.local) {
+        const pingPath = provider.pingPath || "/models";
+        const url = `${baseUrl || provider.baseUrl || ""}${pingPath}`;
+        const res = await fetch(url, { signal: AbortSignal.timeout(5000) });
+        if (!res.ok) throw new Error(`${provider.label} HTTP ${res.status}`);
+      } else if (pid === "claude") {
+        const res = await fetch("https://api.anthropic.com/v1/messages", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01", "anthropic-dangerous-direct-browser-access": "true" },
+          body: JSON.stringify({ model: account.model || "claude-haiku-4-5", max_tokens: 1, messages: [{ role: "user", content: "ping" }] }),
+          signal: AbortSignal.timeout(10000),
+        });
+        if (!res.ok) throw new Error(`Claude ${res.status}: ${await res.text()}`);
+      } else if (pid === "gemini") {
+        const m = account.model || provider.defaultModel || "gemini-2.0-flash";
+        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${apiKey}`, {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ contents: [{ parts: [{ text: "ping" }] }] }),
+          signal: AbortSignal.timeout(10000),
+        });
+        if (!res.ok) throw new Error(`Gemini ${res.status}: ${await res.text()}`);
+      } else {
+        const base = baseUrl || provider.baseUrl || "https://api.openai.com/v1";
+        const headers = { "Content-Type": "application/json" };
+        if (apiKey) headers.Authorization = `Bearer ${apiKey}`;
+        const res = await fetch(`${base}/chat/completions`, {
+          method: "POST", headers,
+          body: JSON.stringify({ model: account.model || provider.defaultModel || "gpt-4o-mini", messages: [{ role: "user", content: "ping" }], max_tokens: 1 }),
+          signal: AbortSignal.timeout(10000),
+        });
+        if (!res.ok) {
+          const txt = await res.text();
+          if (LIMIT_PATTERNS.some(p => p.test(txt))) return fail(`Rate limited — key works but quota exceeded`);
+          throw new Error(`HTTP ${res.status}: ${txt.slice(0, 200)}`);
+        }
+      }
+      return { ok: true, message: `✓ ${provider.label || pid} connected` };
+    } catch(e) {
+      return fail(String(e?.message || e).slice(0, 200));
+    }
   }
 
   async testAccount(id) {

@@ -179,6 +179,7 @@ div.extp-sec-head::before { display: none; }
    Extension Card  (.exc-*)
 ═══════════════════════════════════════════════════════ */
 .exc-card {
+  position: relative;
   display: flex;
   align-items: flex-start;
   gap: 8px;
@@ -362,15 +363,22 @@ div.extp-sec-head::before { display: none; }
 
 .exd-body    { display: flex; height: 100%; min-height: 0; }
 .exd-readme  { flex: 1; padding: 16px 20px; overflow-y: auto; min-width: 0; }
-.exd-readme pre {
-  font-size: 13px;
-  color: var(--t1);
-  line-height: 1.6;
-  white-space: pre-wrap;
-  word-break: break-word;
-  font-family: var(--ui);
-  margin: 0;
-}
+
+/* Markdown rendered elements inside detail view */
+.exd-readme .md-h1 { font-size: 18px; font-weight: 700; color: var(--t1); margin: 16px 0 8px; border-bottom: 1px solid var(--b1); padding-bottom: 4px; }
+.exd-readme .md-h2 { font-size: 15px; font-weight: 700; color: var(--t1); margin: 14px 0 6px; border-bottom: 1px solid var(--b1); padding-bottom: 3px; }
+.exd-readme .md-h3 { font-size: 13px; font-weight: 700; color: var(--t1); margin: 10px 0 4px; }
+.exd-readme .md-h4, .exd-readme .md-h5, .exd-readme .md-h6 { font-size: 12px; font-weight: 700; color: var(--t1); margin: 8px 0 3px; }
+.exd-readme .md-p  { font-size: 12px; color: var(--t1); line-height: 1.65; margin: 4px 0; }
+.exd-readme .md-list { font-size: 12px; color: var(--t1); margin: 4px 0 4px 16px; padding: 0; }
+.exd-readme .md-list li { margin: 2px 0; line-height: 1.55; }
+.exd-readme .md-hr { border: none; border-top: 1px solid var(--b1); margin: 12px 0; }
+.exd-readme .md-bq { border-left: 3px solid var(--accent2); margin: 6px 0; padding: 3px 10px; color: var(--t2); background: var(--bg2); border-radius: 0 3px 3px 0; font-size: 12px; }
+.exd-readme .md-code-block { background: var(--bg2); border: 1px solid var(--b1); border-radius: 3px; padding: 8px 12px; margin: 8px 0; overflow-x: auto; font-size: 11px; font-family: 'JetBrains Mono', Consolas, monospace; line-height: 1.5; color: var(--t1); white-space: pre; }
+.exd-readme .md-ic { background: var(--bg2); border: 1px solid var(--b1); border-radius: 2px; padding: 1px 4px; font-size: 11px; font-family: 'JetBrains Mono', Consolas, monospace; color: var(--accent2); }
+.exd-readme .md-link { color: var(--accent2); text-decoration: none; }
+.exd-readme .md-link:hover { text-decoration: underline; }
+.exd-autoupdate { display: flex; align-items: center; gap: 4px; font-size: 12px; color: var(--t2); cursor: pointer; }
 .exd-sidebar {
   width: 200px;
   min-width: 180px;

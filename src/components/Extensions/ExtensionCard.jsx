@@ -1,6 +1,6 @@
 import { fmtDownloads, starsStr, fmtRating } from "./ExtensionStore.js";
 
-export default function ExtensionCard({ ext, installed, selected, onClick, onInstall, onUninstall }) {
+export default function ExtensionCard({ ext, installed, selected, onClick, onInstall, onUninstall, updateAvailable, onUpdate }) {
   return (
     <div
       className={`exc-card ${selected?"exc-selected":""}`}
@@ -34,10 +34,15 @@ export default function ExtensionCard({ ext, installed, selected, onClick, onIns
 
       {/* Action */}
       <div className="exc-action" onClick={e=>e.stopPropagation()}>
-        {installed
-          ? <button className="exc-btn-gear" title="Settings">⚙</button>
-          : <button className="exc-btn-dl" title="Install" onClick={()=>onInstall?.(ext.id)}>↓</button>}
+        {installed ? (
+          updateAvailable
+            ? <button className="exc-btn-update" title="Update available" onClick={()=>onUpdate?.()}>↑</button>
+            : <button className="exc-btn-gear" title="Settings">⚙</button>
+        ) : (
+          <button className="exc-btn-dl" title="Install" onClick={()=>onInstall?.(ext)}>↓</button>
+        )}
       </div>
+      {updateAvailable && <span className="exc-update-dot" title="Update available" />}
     </div>
   );
 }
