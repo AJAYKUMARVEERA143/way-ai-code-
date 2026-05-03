@@ -657,16 +657,28 @@ function ConnectProviderPanel({ pid, mode, form, setForm, showKey, setShowKey, o
       {/* Phase 1: Open portal */}
       {phase === 1 && !prov.local && (
         <div className="cp-step1">
-          <div className="cp-step-label"><span className="cp-step-num">1</span> Get your API key</div>
-          {prov.signInUrl && (
-            <button className="cp-portal-cta" onClick={() => { openUrl(prov.signInUrl); setTimeout(() => setPhase(2), 800); }}>
-              Open {prov.label} Portal →
-            </button>
+          <div className="cp-step-label"><span className="cp-step-num">1</span> Get your token</div>
+          {pid === "copilot" ? (
+            <div className="cp-copilot-guide">
+              <div className="cp-cg-row"><span className="cp-cg-num">①</span><span>GitHub Copilot subscription active గా ఉండాలి</span></div>
+              <div className="cp-cg-row"><span className="cp-cg-num">②</span><span>Terminal లో run చేయండి:</span></div>
+              <div className="cp-cg-cmd" onClick={() => { try { navigator.clipboard.writeText("gh auth login --web"); } catch {} }}>gh auth login --web <span className="cp-cg-copy">copy</span></div>
+              <div className="cp-cg-row"><span className="cp-cg-num">③</span><span>Login అయిన తర్వాత run చేయండి:</span></div>
+              <div className="cp-cg-cmd" onClick={() => { try { navigator.clipboard.writeText("gh auth token"); } catch {} }}>gh auth token <span className="cp-cg-copy">copy</span></div>
+              <div className="cp-cg-row"><span className="cp-cg-num">④</span><span>Output లో వచ్చిన <code>gho_...</code> token ని next step లో paste చేయండి</span></div>
+              <div className="cp-step1-note" style={{marginTop:4}}>⚠ PAT tokens (<code>ghp_...</code>) పని చేయవు — OAuth token (<code>gho_...</code>) మాత్రమే work అవుతుంది</div>
+              <button className="cp-portal-cta" style={{marginTop:8}} onClick={() => { openUrl("https://cli.github.com/"); }}>Install GitHub CLI →</button>
+            </div>
+          ) : (
+            <>
+              {prov.signInUrl && (
+                <button className="cp-portal-cta" onClick={() => { openUrl(prov.signInUrl); setTimeout(() => setPhase(2), 800); }}>
+                  Open {prov.label} Portal →
+                </button>
+              )}
+            </>
           )}
-          {pid === "copilot" && !isCopilotWithGH && (
-            <div className="cp-step1-note">Requires an active GitHub Copilot subscription. Create a token with <code>copilot</code> scope.</div>
-          )}
-          <button className="cp-skip-link" onClick={() => setPhase(2)}>I already have a key — skip →</button>
+          <button className="cp-skip-link" onClick={() => setPhase(2)}>I already have a token — skip →</button>
         </div>
       )}
 
@@ -854,7 +866,7 @@ function AccountsPanel({ manager, status, refresh, routerScores, routerStrategy,
               <input
                 className="way-input"
                 type={ghShowToken ? "text" : "password"}
-                placeholder="ghp_xxxxxxxxxxxxxxxxxxxx"
+                placeholder="gho_xxxxxxxxxxxxxxxxxxxx (OAuth token)"
                 value={ghToken}
                 onChange={e=>setGhToken(e.target.value)}
                 onKeyDown={e=>e.key==="Enter"&&signInGitHub()}
