@@ -295,16 +295,14 @@ export class AccountManager {
 
   async _oaiCompat(prompt,model,baseUrl,apiKey,onToken,signal) {
     const isCopilot = String(baseUrl || "").includes("api.githubcopilot.com");
-    if (isCopilot && /^(ghp_|github_pat_)/i.test(String(apiKey || ""))) {
-      throw new Error("GitHub Copilot does not accept Personal Access Tokens. Sign in with a Copilot OAuth token or switch to another active provider.");
-    }
     const headers={"Content-Type":"application/json"};
     if(apiKey) headers["Authorization"]=`Bearer ${apiKey}`;
+    if(isCopilot) headers["Copilot-Integration-Id"] = "vscode-chat";
     const res=await fetch(`${baseUrl}/chat/completions`,{method:"POST",headers,body:JSON.stringify({model,messages:[{role:"user",content:prompt}],stream:!!onToken}),signal});
     if(!res.ok){
       const t=await res.text();
       if (isCopilot && COPILOT_PATTERNS.some(p => p.test(t))) {
-        throw new Error("GitHub Copilot in Way AI does not accept PAT tokens for this endpoint. Use a Copilot OAuth token or switch to Claude/Gemini/Ollama.");
+        throw new Error("Copilot auth failed — token rejected. Run: gh auth login --web  then  gh auth token  and use the gho_... token.");
       }
       throw new Error(`HTTP ${res.status}: ${t}`);
     }
@@ -446,18 +444,23 @@ export class AccountManager {
         if (!res.ok) throw new Error(`Gemini ${res.status}: ${await res.text()}`);
       } else {
         const baseUrl = account.baseUrl || provider.baseUrl || "https://api.openai.com/v1";
-        if (String(baseUrl).includes("api.githubcopilot.com") && /^(github_pat_)/i.test(String(apiKey || ""))) {
-          throw new Error("GitHub Copilot does not accept fine-grained PAT tokens. Use an OAuth token (gho_...) from GitHub CLI: run \`gh auth login\` then \`gh auth token\`.");
-        }
+        const isCopilotTest = String(baseUrl).includes("api.githubcopilot.com");
         const headers = { "Content-Type": "application/json" };
         if (apiKey) headers.Authorization = `Bearer ${apiKey}`;
+        if (isCopilotTest) headers["Copilot-Integration-Id"] = "vscode-chat";
         const res = await fetch(`${baseUrl}/chat/completions`, {
           method: "POST",
           headers,
           body: JSON.stringify({ model: account.model || provider.defaultModel || "gpt-4o-mini", messages: [{ role: "user", content: "ping" }], max_tokens: 1 }),
           signal: AbortSignal.timeout(10000),
         });
-        if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`);
+        if (!res.ok) {
+          const errTxt = await res.text();
+          if (isCopilotTest && COPILOT_PATTERNS.some(p => p.test(errTxt))) {
+            throw new Error("Copilot token rejected. Run: gh auth login --web  then  gh auth token  and use the gho_... token.");
+          }
+          throw new Error(`HTTP ${res.status}: ${errTxt}`);
+        }
       }
 
       account.status = "active";
