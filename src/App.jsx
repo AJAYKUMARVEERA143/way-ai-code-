@@ -578,7 +578,8 @@ function AccountEditPopup({ acc, manager, refresh, onClose }) {
 function ConnectProviderPanel({ pid, mode, form, setForm, showKey, setShowKey, onDone, onCancel, ghUser, manager }) {
   const prov = PROVIDERS[pid] || {};
   const isCopilotWithGH = pid === "copilot" && ghUser;
-  const [phase,     setPhase]     = useState(mode === "apikey" || prov.local ? 2 : 1);
+  const showCodexChoice = pid === "chatgpt" && !prov.local;
+  const [phase,     setPhase]     = useState(showCodexChoice && mode !== "apikey" ? 0 : (mode === "apikey" || prov.local ? 2 : 1));
   const [testing,   setTesting]   = useState(false);
   const [testState, setTestState] = useState(null);
   const [testMsg,   setTestMsg]   = useState("");
@@ -626,6 +627,29 @@ function ConnectProviderPanel({ pid, mode, form, setForm, showKey, setShowKey, o
           <div>
             <strong>{ghUser.login}</strong> — GitHub account detected
             <div style={{fontSize:11,color:"var(--t3)",marginTop:1}}>Token pre-filled from your GitHub session</div>
+          </div>
+        </div>
+      )}
+
+      {/* Codex-style choice screen for ChatGPT */}
+      {showCodexChoice && phase === 0 && (
+        <div className="cp-auth-chooser">
+          <div className="cp-auth-title">Codex</div>
+          <div className="cp-auth-sub">Choose how you want to connect this provider.</div>
+          <div className="cp-auth-btns">
+            <button
+              className="cp-auth-btn primary"
+              onClick={() => {
+                openUrl("https://platform.openai.com/api-keys");
+                setTimeout(() => setPhase(2), 500);
+              }}
+            >
+              Sign in with ChatGPT
+            </button>
+            <button className="cp-auth-btn" onClick={() => setPhase(2)}>Use API Key</button>
+          </div>
+          <div className="cp-step1-note">
+            If you are already signed in, create/copy a key from OpenAI Platform and paste it in the next step.
           </div>
         </div>
       )}
@@ -695,12 +719,14 @@ function ConnectProviderPanel({ pid, mode, form, setForm, showKey, setShowKey, o
       )}
 
       {/* Actions */}
-      <div className="cp-actions">
-        <button className="btn-primary" onClick={onDone} disabled={phase === 1 && !prov.local}>
-          {prov.local ? "Configure" : phase === 1 ? "Connect (enter key first)" : "Connect"}
-        </button>
-        <button className="btn-secondary" onClick={onCancel}>Cancel</button>
-      </div>
+      {phase > 0 && (
+        <div className="cp-actions">
+          <button className="btn-primary" onClick={onDone} disabled={phase === 1 && !prov.local}>
+            {prov.local ? "Configure" : phase === 1 ? "Connect (enter key first)" : "Connect"}
+          </button>
+          <button className="btn-secondary" onClick={onCancel}>Cancel</button>
+        </div>
+      )}
     </div>
   );
 }
